@@ -68,23 +68,25 @@ button { font: inherit; color: inherit; }
 @keyframes go { 0% { transform: scale(.7); opacity: 0; } 20% { transform: scale(1.05); opacity: 1; } 100% { transform: scale(1.25); opacity: 0; } }
 
 /* ---------- touch pad ---------- */
-.pad { position: absolute; left: 0; right: 0; bottom: 0; display: none; justify-content: space-between; align-items: flex-end; pointer-events: none;
-  padding-block: 12px max(14px, env(safe-area-inset-bottom, 0px));
-  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.pad.avail.live { display: flex; }
-.pad-l { display: flex; gap: 10px; }
-.pad-r { display: grid; grid-template-columns: auto auto; gap: 10px; align-items: end; justify-items: end; }
-.pad button { pointer-events: auto; touch-action: none; display: grid; place-items: center; cursor: pointer;
-  border-radius: 16px; border: 2px solid var(--line); background: rgba(12,24,22,.55); color: var(--paper);
-  font-family: var(--display); font-size: 14px; letter-spacing: .04em; transition: transform .05s, background .05s; }
-.pad button.on { transform: scale(.94); background: rgba(255,90,54,.7); border-color: var(--hot); }
-.pad .steer { width: 74px; height: 86px; }
-.pad .gas { width: 88px; height: 100px; background: rgba(255,90,54,.28); border-color: rgba(255,90,54,.7); }
-.pad .brake { width: 60px; height: 60px; font-size: 12px; }
-.pad .fire { grid-column: 2; width: 88px; height: 64px; opacity: .55; }
+.pad { position: absolute; inset: 0; display: none; pointer-events: none; }
+.pad.avail.live { display: block; }
+/* Left: drive joystick (x = steer, up = gas, down = brake/reverse). The base appears where the thumb lands. */
+.stick-zone { position: absolute; left: 0; bottom: 0; width: 58%; height: 62%; pointer-events: auto; touch-action: none; }
+.stick { position: absolute; width: 132px; height: 132px; border-radius: 50%; pointer-events: none;
+  left: max(20px, env(safe-area-inset-left, 0px)); bottom: max(24px, env(safe-area-inset-bottom, 0px));
+  background: rgba(12,24,22,.4); border: 2px solid var(--line); opacity: .6; transition: opacity .12s; }
+.stick.on { opacity: 1; background: rgba(12,24,22,.55); border-color: rgba(255,90,54,.7); }
+.stick i { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; margin: -29px 0 0 -29px; border-radius: 50%;
+  background: rgba(255,90,54,.45); border: 2px solid rgba(255,90,54,.85); }
+.stick.on i { background: rgba(255,90,54,.8); }
+/* Right: action button. */
+.pad .fire { position: absolute; pointer-events: auto; touch-action: none; display: grid; place-items: center; cursor: pointer;
+  right: max(22px, env(safe-area-inset-right, 0px)); bottom: max(34px, env(safe-area-inset-bottom, 0px));
+  width: 108px; height: 108px; border-radius: 50%; border: 2px solid var(--line); background: rgba(12,24,22,.55); color: var(--paper);
+  font-family: var(--display); font-size: 17px; letter-spacing: .04em; opacity: .55; transition: transform .05s, background .05s; }
 .pad.armed .fire { opacity: 1; background: rgba(255,214,64,.3); border-color: var(--gold); color: var(--gold); }
+.pad .fire.on { transform: scale(.94); background: rgba(255,90,54,.7); border-color: var(--hot); color: var(--paper); }
 .pad.armed .fire.on { background: rgba(255,214,64,.7); color: var(--ink); }
-.pad svg { pointer-events: none; }
 
 /* ---------- overlays ---------- */
 .overlay { position: absolute; inset: 0; display: grid; place-items: center; overflow-y: auto; touch-action: pan-y;
@@ -105,7 +107,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
   font-family: var(--display); font-size: 22px; letter-spacing: .04em; box-shadow: 0 5px 0 #a8321a; transition: transform .08s, box-shadow .08s; }
 .cta:hover { filter: brightness(1.08); }
 .cta:active { transform: translateY(4px); box-shadow: 0 1px 0 #a8321a; }
-.cta:focus-visible, .snd:focus-visible, .pad button:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+.cta:focus-visible, .snd:focus-visible, .pad .fire:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .stat { padding: 10px 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .stat b { font-family: var(--display); font-weight: 400; font-size: clamp(22px, 6vw, 32px); font-variant-numeric: tabular-nums; line-height: 1; }
@@ -138,15 +140,10 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
   </div>
 
   <div class="pad" id="pad">
-    <div class="pad-l">
-      <button class="steer" data-act="left" type="button" aria-label="Steer left"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M15 4l-8 8 8 8"/></svg></button>
-      <button class="steer" data-act="right" type="button" aria-label="Steer right"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l8 8-8 8"/></svg></button>
+    <div class="stick-zone" id="stickZone" role="group" aria-label="Drive joystick: left and right steer, up accelerates, down brakes">
+      <div class="stick" id="stick"><i id="knob"></i></div>
     </div>
-    <div class="pad-r">
-      <button class="fire" data-act="fire" type="button">FIRE</button>
-      <button class="brake" data-act="brake" type="button">BRAKE</button>
-      <button class="gas" data-act="gas" type="button">GAS</button>
-    </div>
+    <button class="fire" data-act="fire" type="button">FIRE</button>
   </div>
 
   <div class="overlay" id="menu">
@@ -160,7 +157,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <li><span>BRAKE / REVERSE</span><kbd>&darr;</kbd></li>
         <li><span>FIRE</span><kbd>SPACE</kbd></li>
       </ul>
-      <p class="touchnote">On a phone, use the on-screen pad. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
+      <p class="touchnote">On a phone, drag the left thumb to drive (left/right steers, up accelerates, down brakes) and tap FIRE on the right. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
       <button class="cta" id="start" type="button">Start race</button>
     </div>
   </div>
@@ -703,7 +700,7 @@ window.addEventListener('keydown', e => {
   if (a) { e.preventDefault(); keys.add(a); initAudio(); }
 });
 window.addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) keys.delete(a); });
-window.addEventListener('blur', () => { keys.clear(); touch.clear(); });
+window.addEventListener('blur', () => { keys.clear(); touch.clear(); stickRelease(); });
 const padEl = $('pad');
 padEl.querySelectorAll('button').forEach(b => {
   const act = b.dataset.act;
@@ -713,15 +710,52 @@ padEl.querySelectorAll('button').forEach(b => {
   b.addEventListener('pointerup', off); b.addEventListener('pointercancel', off); b.addEventListener('lostpointercapture', off);
   b.addEventListener('contextmenu', e => e.preventDefault());
 });
+/* Drive joystick: the base re-centres on wherever the thumb lands in the left zone. */
+const stickZone = $('stickZone'), stickEl = $('stick'), knobEl = $('knob');
+const STICK_R = 56, STICK_DEAD = 0.12;
+const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
+function stickMove(e) {
+  const zr = stickZone.getBoundingClientRect();
+  let dx = e.clientX - zr.left - stick.ox, dy = e.clientY - zr.top - stick.oy;
+  const d = Math.hypot(dx, dy);
+  if (d > STICK_R) { dx *= STICK_R / d; dy *= STICK_R / d; }
+  const nx = dx / STICK_R, ny = dy / STICK_R, m = Math.hypot(nx, ny);
+  const k = m < STICK_DEAD ? 0 : (m - STICK_DEAD) / (1 - STICK_DEAD) / m;
+  stick.x = nx * k; stick.y = ny * k;
+  knobEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+}
+function stickRelease() {
+  stick.id = null; stick.x = stick.y = 0;
+  stickEl.classList.remove('on'); stickEl.style.left = stickEl.style.top = stickEl.style.bottom = ''; knobEl.style.transform = '';
+}
+stickZone.addEventListener('pointerdown', e => {
+  if (stick.id !== null) return;
+  e.preventDefault(); initAudio();
+  const zr = stickZone.getBoundingClientRect(), h = stickEl.offsetWidth / 2;
+  stick.id = e.pointerId;
+  stick.ox = Math.min(Math.max(e.clientX - zr.left, h), zr.width - h);
+  stick.oy = Math.min(Math.max(e.clientY - zr.top, h), zr.height - h);
+  stickEl.style.left = (stick.ox - h) + 'px'; stickEl.style.top = (stick.oy - h) + 'px'; stickEl.style.bottom = 'auto';
+  stickEl.classList.add('on');
+  try { stickZone.setPointerCapture(e.pointerId); } catch (_) {}
+  stickMove(e);
+});
+stickZone.addEventListener('pointermove', e => { if (e.pointerId === stick.id) { e.preventDefault(); stickMove(e); } });
+const stickEnd = e => { if (e.pointerId === stick.id) stickRelease(); };
+stickZone.addEventListener('pointerup', stickEnd); stickZone.addEventListener('pointercancel', stickEnd); stickZone.addEventListener('lostpointercapture', stickEnd);
+stickZone.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('touchmove', e => { if (!(e.target.closest && e.target.closest('.overlay'))) e.preventDefault(); }, { passive: false });
 if (window.matchMedia && matchMedia('(pointer: coarse)').matches) padEl.classList.add('avail');
 window.addEventListener('touchstart', () => padEl.classList.add('avail'), { once: true, passive: true });
 const has = a => keys.has(a) || touch.has(a);
 function readInput(dt) {
-  const target = (has('right') ? 1 : 0) - (has('left') ? 1 : 0);
+  const kb = (has('right') ? 1 : 0) - (has('left') ? 1 : 0);
+  const target = kb || stick.x;
   input.steer += (target - input.steer) * Math.min(1, dt * (target === 0 ? 14 : 9));
   if (Math.abs(input.steer) < 0.01) input.steer = 0;
-  input.thr = has('gas') ? 1 : 0; input.brk = has('brake') ? 1 : 0; input.fire = has('fire') ? 1 : 0;
+  input.thr = has('gas') || stick.y < -0.25 ? 1 : 0;
+  input.brk = has('brake') || stick.y > 0.35 ? 1 : 0;
+  input.fire = has('fire') ? 1 : 0;
 }
 
 /* ---------- ui ---------- */
@@ -759,7 +793,7 @@ function showEnd() {
   $('stPlace').textContent = r.kind === 'wrecked' ? '—' : ord(r.place);
   $('stKills').textContent = r.kills; $('stTime').textContent = fmtTime(r.time);
   $('stTimeLab').textContent = r.kind === 'finish' ? 'RACE TIME' : 'SURVIVED';
-  hud.hidden = true; padEl.classList.remove('live'); endEl.hidden = false; $('again').focus({ preventScroll: true });
+  hud.hidden = true; padEl.classList.remove('live'); stickRelease(); endEl.hidden = false; $('again').focus({ preventScroll: true });
 }
 function handleEvents() {
   for (const e of S.events) {

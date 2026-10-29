@@ -11,7 +11,7 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 - Open `index.html` in a browser, or serve the folder (`npx serve .` or `python3 -m http.server`).
 - The only network dependency is Google Fonts (Bungee for display, Barlow Condensed for UI). Both have system fallbacks, so the game works offline.
 - Desktop: arrow keys or WASD to steer and accelerate, Space or F or Shift to fire, `M` to mute, Enter or Space to start from a menu.
-- Touch: an on-screen pad appears on the first touch (left/right, gas, brake, fire).
+- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick (x steers, analog; up accelerates; down brakes/reverses), its base appears wherever the thumb lands in the left zone. Right thumb: FIRE button.
 
 ## 2. What exists
 
@@ -134,7 +134,7 @@ The renderer can be checked in Node with `@napi-rs/canvas`: stub `document`, `wi
 
 ## 7. Known limitations and caveats
 
-- **Not tested in a real browser.** I could only run the logic and a Node canvas render. Still unverified: the HTML HUD and overlay layout, the touch pad feel, and all audio. Check these first.
+- **Not tested in a real browser.** I could only run the logic and a Node canvas render. Still unverified: the HTML HUD and overlay layout, the touch control feel (joystick radius, dead zone and thresholds are `STICK_R`, `STICK_DEAD` and the `readInput` thresholds), and all audio. Check these first.
 - **Props are decorative.** The felt-table clutter (blocks, planks, discs) sits off the track and has no collision, so it cannot be used as an obstacle yet.
 - **AI is simple.** It follows a lane offset, brakes to `vsafe`, and aims by lining up in front of a target. It does not dodge incoming fire or plan overtakes.
 - **Difficulty is one fixed setting.** The player's top speed is 372. AI cars cap at 366 times their skill (0.84 to 0.96, randomised per race), so even the best AI car is slower than a clean human lap.
