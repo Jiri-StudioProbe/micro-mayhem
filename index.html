@@ -85,6 +85,11 @@ button { font: inherit; color: inherit; }
   width: 108px; height: 108px; border-radius: 50%; border: 2px solid var(--line); background: rgba(12,24,22,.55); color: var(--paper);
   font-family: var(--display); font-size: 17px; letter-spacing: .04em; opacity: .55; transition: transform .05s, background .05s; }
 .pad.armed .fire { opacity: 1; background: rgba(255,214,64,.3); border-color: var(--gold); color: var(--gold); }
+.pad .brake { position: absolute; pointer-events: auto; touch-action: none; display: grid; place-items: center; cursor: pointer;
+  right: calc(max(22px, env(safe-area-inset-right, 0px)) + 120px); bottom: max(34px, env(safe-area-inset-bottom, 0px));
+  width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); background: rgba(12,24,22,.45); color: var(--paper);
+  font-family: var(--display); font-size: 11px; letter-spacing: .02em; opacity: .7; transition: transform .05s, background .05s; }
+.pad .brake.on { transform: scale(.94); background: rgba(94,200,242,.55); border-color: var(--cool); }
 .pad .fire.on { transform: scale(.94); background: rgba(255,90,54,.7); border-color: var(--hot); color: var(--paper); }
 .pad.armed .fire.on { background: rgba(255,214,64,.7); color: var(--ink); }
 
@@ -107,7 +112,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
   font-family: var(--display); font-size: 22px; letter-spacing: .04em; box-shadow: 0 5px 0 #a8321a; transition: transform .08s, box-shadow .08s; }
 .cta:hover { filter: brightness(1.08); }
 .cta:active { transform: translateY(4px); box-shadow: 0 1px 0 #a8321a; }
-.cta:focus-visible, .snd:focus-visible, .pad .fire:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+.cta:focus-visible, .snd:focus-visible, .pad .fire:focus-visible, .pad .brake:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .stat { padding: 10px 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .stat b { font-family: var(--display); font-weight: 400; font-size: clamp(22px, 6vw, 32px); font-variant-numeric: tabular-nums; line-height: 1; }
@@ -143,6 +148,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
     <div class="stick-zone" id="stickZone" role="group" aria-label="Drive joystick: left and right steer, up accelerates, down brakes">
       <div class="stick" id="stick"><i id="knob"></i></div>
     </div>
+    <button class="brake" data-act="brake" type="button" aria-label="Brake and reverse">BRAKE</button>
     <button class="fire" data-act="fire" type="button">FIRE</button>
   </div>
 
@@ -157,7 +163,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <li><span>BRAKE / REVERSE</span><kbd>&darr;</kbd></li>
         <li><span>FIRE</span><kbd>SPACE</kbd></li>
       </ul>
-      <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself, slide left/right to steer and pull down to brake. Tap FIRE on the right. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
+      <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself and you slide left/right to steer. FIRE and BRAKE are on the right. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
       <button class="cta" id="start" type="button">Start race</button>
     </div>
   </div>
@@ -713,9 +719,9 @@ padEl.querySelectorAll('button').forEach(b => {
 });
 /* Drive joystick: the base re-centres on wherever the thumb lands in the left zone. */
 const stickZone = $('stickZone'), stickEl = $('stick'), knobEl = $('knob');
-const STICK_R = 48, STICK_DEAD = 0.1;
-const STICK_STEER_GAIN = 1.5;   // full steering lock at ~2/3 deflection, so a relaxed thumb still turns hard
-const STICK_BRAKE_Y = 0.4;      // pull down past this to brake/reverse; otherwise the car keeps accelerating
+const STICK_R = 48, STICK_DEAD = 0.08;
+const STICK_STEER_GAIN = 2.2;   // full steering lock at ~45% deflection, so a small thumb movement turns hard
+const STICK_STEER_RATE = 45;    // stick steering smoothing (1/s); keys use 9 to ease in, a thumb needs almost none
 const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
 function stickMove(e) {
   const zr = stickZone.getBoundingClientRect();
@@ -766,13 +772,12 @@ function readInput(dt) {
   const sx = Math.max(-1, Math.min(1, stick.x * STICK_STEER_GAIN));
   const target = kb || sx;
   // a thumb is already a smooth analog input, so the stick needs less smoothing than a key press
-  const rate = kb ? (target === 0 ? 14 : 9) : 22;
+  const rate = kb ? (target === 0 ? 14 : 9) : STICK_STEER_RATE;
   input.steer += (target - input.steer) * Math.min(1, dt * rate);
   if (Math.abs(input.steer) < 0.01) input.steer = 0;
-  // touching the stick = foot down. Steering sideways must not cost speed; pull down to brake.
-  const braking = has('brake') || stick.y > STICK_BRAKE_Y;
-  input.thr = has('gas') || (stick.id !== null && !braking) ? 1 : 0;
-  input.brk = braking ? 1 : 0;
+  // left thumb down = foot down, always. Braking/reversing is the separate BRAKE button.
+  input.thr = has('gas') || (stick.id !== null && !has('brake')) ? 1 : 0;
+  input.brk = has('brake') ? 1 : 0;
   input.fire = has('fire') ? 1 : 0;
 }
 
