@@ -11,7 +11,7 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 - Open `index.html` in a browser, or serve the folder (`npx serve .` or `python3 -m http.server`).
 - The only network dependency is Google Fonts (Bungee for display, Barlow Condensed for UI). Both have system fallbacks, so the game works offline.
 - Desktop: arrow keys or WASD to steer and accelerate, Space or F or Shift to fire, `M` to mute, Enter or Space to start from a menu.
-- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick. Left thumb down = gas always on; x steers (analog, gain `STICK_STEER_GAIN`, full lock at about 45% deflection, almost unsmoothed via `STICK_STEER_RATE`). The base appears where the thumb lands and trails it when it leaves `STICK_R`. Right thumb: FIRE button, plus a small BRAKE/REVERSE button beside it.
+- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick. Left thumb down = gas always on; x steers (analog, gain `STICK_STEER_GAIN`, full lock at about 45% deflection, almost unsmoothed via `STICK_STEER_RATE`). The base appears where the thumb lands and trails it when it leaves `STICK_R`. Right thumb: FIRE button, plus a small BRAKE/REVERSE button beside it. **Driving assist** (see section 5b) is on by default on touch devices and off on desktop; toggle it from the start screen or the HUD, the choice is stored in `localStorage` (`mm-assist`).
 
 ## 2. What exists
 
@@ -108,6 +108,13 @@ All values are in the Sim IIFE unless noted.
 | Wreck duration | `destroy` | 7 s |
 | Camera tilt / perspective | shell | `TILT = 0.66`, `K = 0.0011` |
 
+### 5b. Driving assist and mobile performance
+
+- **Why it exists.** Measured with `tools/driver-study.js`: the same sim with a keyboard-style driver wins most races, but a thumb-style driver (noisy analog steering, gas always on) never wins and averages 5th, losing about 8 s a race to wall scraping (about 7 wall hits vs 0.5). Re-tuning stick gain and smoothing cannot close that gap, so the car now helps.
+- **What it does** (`assist()` in the Sim, runs only for the human player when `S.assist` is set): holds the lane the driver is in, steering along the track and away from the walls, with the driver's own steering taking priority (assist weight is `1 - 1.3*|steer|`); and lifts/brakes for corners above `ASSIST_SPEED` (1.1) times the AI's safe speed `vsafe`. It does nothing below 20 units/s so reversing is never fought. With assist, the thumb-driver model wins about 3 of 4 races (avg 2.2nd) with about 0.3 wall hits.
+- **Frame rate.** `tick()` catches the sim up in <=1/60 s sub-steps for up to 0.25 s of lag, so the world stays real time on slow phones (it used to run in slow motion below 20 fps). If frames stay slower than 26 ms the canvas resolution steps down (`RES_STEPS`, never back up, to avoid flip-flopping); phones start capped at 1.5x device pixel ratio.
+- **Diagnosing a device.** Open the game with `?debug` (for example `.../micro-mayhem/?debug`) to get an overlay with fps, frame time, canvas resolution and sim speed (should read 1.00x).
+
 ## 6. Testing without a browser
 
 Because `Sim` is pure, you can run headless races. Save the `Sim` IIFE to `sim.js` (keep the `module.exports` line) and:
@@ -123,6 +130,8 @@ for (let t = 0; t < 200 && S.state !== 'over'; t += 1 / 60) {
 }
 console.log(S.state, Sim.ranking(S).map(c => `${c.name}:${Math.round(c.hp)}`));
 ```
+
+`node tools/driver-study.js [runs]` pulls the Sim out of `index.html` and compares keyboard-style and thumb-style drivers with and without assist. Re-run it after any change to physics, steering or the assist.
 
 Checks worth keeping when you change physics or the track:
 

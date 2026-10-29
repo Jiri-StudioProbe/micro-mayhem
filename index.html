@@ -54,8 +54,12 @@ button { font: inherit; color: inherit; }
 .wpn.armed { border-color: var(--gold); color: var(--gold); opacity: 1; }
 .wpn.armed span:last-child { font-family: var(--display); font-size: 16px; opacity: 1; }
 #mini { width: 100px; height: 100px; border-radius: 8px; background: rgba(12,24,22,.62); border: 2px solid var(--line); justify-self: end; }
-.snd { position: absolute; pointer-events: auto; right: max(16px, env(safe-area-inset-right, 0px)); top: 116px; padding: 4px 8px; border-radius: 4px;
+.hud-btns { position: absolute; right: max(16px, env(safe-area-inset-right, 0px)); top: 116px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; pointer-events: none; }
+.snd { pointer-events: auto; padding: 4px 8px; border-radius: 4px;
   background: rgba(12,24,22,.6); border: 2px solid var(--line); font-size: 12px; font-weight: 700; letter-spacing: .12em; cursor: pointer; }
+.snd.inline { align-self: flex-start; font-size: 14px; padding: 8px 12px; }
+.snd[aria-pressed="true"].assist, .snd[aria-pressed="true"].inline { border-color: var(--gold); color: var(--gold); }
+#dbg { position: fixed; left: 6px; bottom: 6px; z-index: 9; padding: 2px 6px; border-radius: 3px; background: rgba(0,0,0,.65); color: #9f9; font: 11px/1.3 ui-monospace, monospace; pointer-events: none; white-space: pre; }
 #toasts { position: absolute; left: 0; right: 0; top: 150px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-inline: 16px; }
 .toast { padding: 6px 14px; border-radius: 4px; background: rgba(12,24,22,.82); border: 2px solid var(--line); font-weight: 700; letter-spacing: .1em; font-size: 17px;
   animation: toast 2.2s ease forwards; text-align: center; }
@@ -116,7 +120,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .stat { padding: 10px 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .stat b { font-family: var(--display); font-weight: 400; font-size: clamp(22px, 6vw, 32px); font-variant-numeric: tabular-nums; line-height: 1; }
-@media (max-width: 420px) { .keys { grid-template-columns: minmax(0, 1fr); } .hud-top { grid-template-columns: minmax(70px, auto) minmax(0, 1fr) 88px; gap: 8px; } #mini { width: 88px; height: 88px; } .snd { top: 102px; } #toasts { top: 140px; } }
+@media (max-width: 420px) { .keys { grid-template-columns: minmax(0, 1fr); } .hud-top { grid-template-columns: minmax(70px, auto) minmax(0, 1fr) 88px; gap: 8px; } #mini { width: 88px; height: 88px; } .hud-btns { top: 102px; } #toasts { top: 140px; } }
 @media (prefers-reduced-motion: reduce) { .toast, #cd.go { animation-duration: .01s; } }
 </style>
 
@@ -139,7 +143,10 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
       </div>
       <canvas id="mini" width="200" height="200" aria-label="Track map"></canvas>
     </div>
-    <button class="snd" id="snd" type="button" aria-pressed="true">SOUND ON</button>
+    <div class="hud-btns">
+      <button class="snd" id="snd" type="button" aria-pressed="true">SOUND ON</button>
+      <button class="snd assist" id="assistHud" type="button" aria-pressed="false">ASSIST OFF</button>
+    </div>
     <div id="toasts" aria-live="polite"></div>
     <div id="cd" hidden></div>
   </div>
@@ -163,7 +170,8 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <li><span>BRAKE / REVERSE</span><kbd>&darr;</kbd></li>
         <li><span>FIRE</span><kbd>SPACE</kbd></li>
       </ul>
-      <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself and you slide left/right to steer. FIRE and BRAKE are on the right. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
+      <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself and you slide left/right to steer. FIRE and BRAKE are on the right. Driving assist keeps you off the walls and slows you for tight corners; switch it on or off here or during the race. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
+      <button class="snd inline" id="assistMenu" type="button" aria-pressed="false">DRIVING ASSIST: OFF</button>
       <button class="cta" id="start" type="button">Start race</button>
     </div>
   </div>
@@ -431,6 +439,23 @@ function aiControl(S, c, dt) {
   }
 }
 
+/* ---------- driving assist (touch) ---------- */
+// Thumb steering is noisy and a phone player can't lift off the gas mid-corner, so the car helps:
+// it holds the lane it is in (steering along the track and away from the walls) and sheds speed
+// before corners it could not take. The driver's own steering always takes priority.
+const ASSIST_SPEED = 1.1;      // corner speed allowed, as a multiple of the AI's safe speed
+function assist(c) {
+  const spd = Math.hypot(c.vx, c.vy), f = Math.cos(c.a), s = Math.sin(c.a), vf = c.vx * f + c.vy * s;
+  const i = c.idx, d = (c.x - T.x[i]) * T.nx[i] + (c.y - T.y[i]) * T.ny[i];
+  const lane = clamp(d, -(HALF_W - 44), HALF_W - 44);
+  const ti = (i + 3 + Math.floor(spd / 75)) % N;
+  const da = angDiff(c.a, Math.atan2(T.y[ti] + T.ny[ti] * lane - c.y, T.x[ti] + T.nx[ti] * lane - c.x));
+  if (vf > 20) c.steer = clamp(c.steer + clamp(da * 2.8, -1, 1) * (1 - Math.min(1, Math.abs(c.steer) * 1.3)), -1, 1);
+  const vmax = T.vsafe[i] * ASSIST_SPEED;
+  if (vf > vmax) c.throttle = 0;
+  if (vf > vmax * 1.18 && !c.brake) c.brake = 1;
+}
+
 /* ---------- physics ---------- */
 function drive(c, dt) {
   const fx = Math.cos(c.a), fy = Math.sin(c.a), rx = -fy, ry = fx;
@@ -512,6 +537,7 @@ function step(S, dt) {
     if (S.state === 'countdown') { c.vx = c.vy = 0; continue; }
     if (c.isPlayer && !c.auto) {
       c.steer = S.input.steer; c.throttle = S.input.thr; c.brake = S.input.brk; c.fire = S.input.fire;
+      if (S.assist && S.state === 'race') assist(c);
     } else aiControl(S, c, dt);
     drive(c, dt);
     walls(S, c, dt, true);
@@ -651,11 +677,14 @@ const S = create();
 const $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
 let W = 0, H = 0, DPR = 1, Z = 1, baseY = 0;
+const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
+// Canvas resolution steps. Slow devices step down automatically (see tick()); phones start capped at 1.5x.
+const RES_STEPS = [1, 0.75, 0.55]; let resStep = 0;
 const K = 0.0011, TILT = 0.66;
 const cam = { x: T.x[0], y: T.y[0], a: T.ang[0], c: 1, s: 0, shx: 0, shy: 0 };
 
 function resize() {
-  DPR = Math.min(2, window.devicePixelRatio || 1);
+  DPR = Math.min(COARSE ? 1.5 : 2, window.devicePixelRatio || 1) * RES_STEPS[resStep];
   W = cv.clientWidth; H = cv.clientHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
   // short (landscape phone) screens zoom in a little so the track and cars aren't tiny
@@ -789,6 +818,18 @@ const ord = n => n + (['TH', 'ST', 'ND', 'RD'][(n % 100 > 10 && n % 100 < 14) ? 
 const overlayOpen = () => !menu.hidden || !endEl.hidden;
 function toggleMute() { muted = !muted; sndBtn.textContent = muted ? 'SOUND OFF' : 'SOUND ON'; sndBtn.setAttribute('aria-pressed', String(!muted)); if (AC) { if (muted) AC.suspend(); else AC.resume(); } }
 sndBtn.addEventListener('click', toggleMute);
+const assistBtns = [$('assistHud'), $('assistMenu')];
+let assistChosen = false;
+function setAssist(on, byUser) {
+  S.assist = on;
+  assistBtns[0].textContent = on ? 'ASSIST ON' : 'ASSIST OFF'; assistBtns[1].textContent = 'DRIVING ASSIST: ' + (on ? 'ON' : 'OFF');
+  assistBtns.forEach(b => b.setAttribute('aria-pressed', String(on)));
+  if (byUser) { assistChosen = true; try { localStorage.setItem('mm-assist', on ? '1' : '0'); } catch (_) {} }
+}
+try { const v = localStorage.getItem('mm-assist'); if (v !== null) assistChosen = true; setAssist(v === null ? COARSE : v === '1', false); } catch (_) { setAssist(COARSE, false); }
+assistBtns.forEach(b => b.addEventListener('click', () => setAssist(!S.assist, true)));
+// a touch before any choice was made (hybrid devices) turns the assist on once
+window.addEventListener('touchstart', () => { if (!assistChosen) setAssist(true, false); }, { once: true, passive: true });
 function toast(text, cls) {
   while (toasts.children.length > 3) toasts.firstChild.remove();
   const d = document.createElement('div'); d.className = 'toast' + (cls ? ' ' + cls : ''); d.textContent = text;
@@ -1173,8 +1214,15 @@ function frame(now) {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
 }
+const dbg = /[?&]debug\b/.test(location.search) ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
+let ft = 16.7, lastAdj = performance.now() + 3000, dbgT = 0, dbgS = 0, dbgN = 0;
 function tick(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = now - last;
+  // The sim must stay real-time on slow phones: up to 0.25 s is caught up in <=1/60 s sub-steps (the sim costs ~0.1 ms each).
+  const dt = Math.min(0.25, raw / 1000); last = now;
+  // Adaptive resolution: if frames are slow, drop the canvas resolution a step (never back up, to avoid flip-flopping).
+  if (raw < 250) ft += (raw - ft) * 0.05;
+  if (ft > 26 && resStep < RES_STEPS.length - 1 && now - lastAdj > 2500) { resStep++; lastAdj = now; resize(); }
   readInput(dt);
   const subs = Math.max(1, Math.ceil(dt / (1 / 60)));
   for (let k = 0; k < subs; k++) step(S, dt / subs);
@@ -1200,6 +1248,14 @@ function tick(now) {
     const sp = Math.hypot(S.player.vx, S.player.vy), on = !muted && !hud.hidden && S.player.alive && S.state !== 'over';
     eng.o.frequency.setTargetAtTime(52 + sp * 0.26 + (input.thr ? 14 : 0), AC.currentTime, 0.05);
     eng.g.gain.setTargetAtTime(on ? 0.05 : 0, AC.currentTime, 0.1);
+  }
+  if (dbg) {
+    dbgN++;
+    if (now - dbgT > 500) {
+      const sim = dbgT ? (S.t - dbgS) / ((now - dbgT) / 1000) : 1;
+      dbg.textContent = 'fps ' + (dbgN / ((now - dbgT) / 1000)).toFixed(0) + '  frame ' + ft.toFixed(1) + 'ms\nres ' + DPR.toFixed(2) + 'x (' + cv.width + 'x' + cv.height + ')\nsim speed ' + sim.toFixed(2) + 'x  assist ' + (S.assist ? 'on' : 'off');
+      dbgT = now; dbgS = S.t; dbgN = 0;
+    }
   }
 }
 requestAnimationFrame(frame);
