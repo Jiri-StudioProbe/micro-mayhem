@@ -11,7 +11,7 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 - Open `index.html` in a browser, or serve the folder (`npx serve .` or `python3 -m http.server`).
 - The only network dependency is Google Fonts (Bungee for display, Barlow Condensed for UI). Both have system fallbacks, so the game works offline.
 - Desktop: arrow keys or WASD to steer and accelerate, Space or F or Shift to fire, `M` to mute, Enter or Space to start from a menu.
-- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick (x steers, analog; up accelerates; down brakes/reverses), its base appears wherever the thumb lands in the left zone. Right thumb: FIRE button.
+- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick. Touching it = gas on (so steering sideways never costs speed), x steers (analog, gain `STICK_STEER_GAIN`, full lock at about 2/3 deflection), pulling down past `STICK_BRAKE_Y` brakes/reverses. The base appears where the thumb lands and trails it when it leaves `STICK_R`. Right thumb: FIRE button.
 
 ## 2. What exists
 

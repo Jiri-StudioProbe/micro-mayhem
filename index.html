@@ -157,7 +157,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <li><span>BRAKE / REVERSE</span><kbd>&darr;</kbd></li>
         <li><span>FIRE</span><kbd>SPACE</kbd></li>
       </ul>
-      <p class="touchnote">On a phone, drag the left thumb to drive (left/right steers, up accelerates, down brakes) and tap FIRE on the right. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
+      <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself, slide left/right to steer and pull down to brake. Tap FIRE on the right. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
       <button class="cta" id="start" type="button">Start race</button>
     </div>
   </div>
@@ -652,7 +652,8 @@ function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = cv.clientWidth; H = cv.clientHeight;
   cv.width = Math.round(W * DPR); cv.height = Math.round(H * DPR);
-  Z = clamp(Math.min(W / 400, H / 500), 0.7, 2.1);
+  // short (landscape phone) screens zoom in a little so the track and cars aren't tiny
+  Z = clamp(Math.min(W / 400, H / (500 - 70 * clamp((500 - H) / 110, 0, 1))), 0.7, 2.1);
   baseY = H * 0.77;
 }
 window.addEventListener('resize', resize); resize();
@@ -712,13 +713,25 @@ padEl.querySelectorAll('button').forEach(b => {
 });
 /* Drive joystick: the base re-centres on wherever the thumb lands in the left zone. */
 const stickZone = $('stickZone'), stickEl = $('stick'), knobEl = $('knob');
-const STICK_R = 56, STICK_DEAD = 0.12;
+const STICK_R = 48, STICK_DEAD = 0.1;
+const STICK_STEER_GAIN = 1.5;   // full steering lock at ~2/3 deflection, so a relaxed thumb still turns hard
+const STICK_BRAKE_Y = 0.4;      // pull down past this to brake/reverse; otherwise the car keeps accelerating
 const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
 function stickMove(e) {
   const zr = stickZone.getBoundingClientRect();
+  const h = stickEl.offsetWidth / 2;
   let dx = e.clientX - zr.left - stick.ox, dy = e.clientY - zr.top - stick.oy;
   const d = Math.hypot(dx, dy);
-  if (d > STICK_R) { dx *= STICK_R / d; dy *= STICK_R / d; }
+  if (d > STICK_R) {
+    // the base trails the thumb, so reversing a flick never means travelling back across the whole stick
+    const pull = (d - STICK_R) / d;
+    stick.ox = Math.min(Math.max(stick.ox + dx * pull, h), zr.width - h);
+    stick.oy = Math.min(Math.max(stick.oy + dy * pull, h), zr.height - h);
+    stickEl.style.left = (stick.ox - h) + 'px'; stickEl.style.top = (stick.oy - h) + 'px';
+    dx = e.clientX - zr.left - stick.ox; dy = e.clientY - zr.top - stick.oy;
+    const d2 = Math.hypot(dx, dy);
+    if (d2 > STICK_R) { dx *= STICK_R / d2; dy *= STICK_R / d2; }
+  }
   const nx = dx / STICK_R, ny = dy / STICK_R, m = Math.hypot(nx, ny);
   const k = m < STICK_DEAD ? 0 : (m - STICK_DEAD) / (1 - STICK_DEAD) / m;
   stick.x = nx * k; stick.y = ny * k;
@@ -750,11 +763,16 @@ window.addEventListener('touchstart', () => padEl.classList.add('avail'), { once
 const has = a => keys.has(a) || touch.has(a);
 function readInput(dt) {
   const kb = (has('right') ? 1 : 0) - (has('left') ? 1 : 0);
-  const target = kb || stick.x;
-  input.steer += (target - input.steer) * Math.min(1, dt * (target === 0 ? 14 : 9));
+  const sx = Math.max(-1, Math.min(1, stick.x * STICK_STEER_GAIN));
+  const target = kb || sx;
+  // a thumb is already a smooth analog input, so the stick needs less smoothing than a key press
+  const rate = kb ? (target === 0 ? 14 : 9) : 22;
+  input.steer += (target - input.steer) * Math.min(1, dt * rate);
   if (Math.abs(input.steer) < 0.01) input.steer = 0;
-  input.thr = has('gas') || stick.y < -0.25 ? 1 : 0;
-  input.brk = has('brake') || stick.y > 0.35 ? 1 : 0;
+  // touching the stick = foot down. Steering sideways must not cost speed; pull down to brake.
+  const braking = has('brake') || stick.y > STICK_BRAKE_Y;
+  input.thr = has('gas') || (stick.id !== null && !braking) ? 1 : 0;
+  input.brk = braking ? 1 : 0;
   input.fire = has('fire') ? 1 : 0;
 }
 
