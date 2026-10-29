@@ -134,6 +134,8 @@ The renderer can be checked in Node with `@napi-rs/canvas`: stub `document`, `wi
 
 ## 7. Known limitations and caveats
 
+- **Freeze bug, fixed (v1.3).** Rockets and shockwave rings were not culled, so a distant AI-vs-AI explosion threw `IndexSizeError` in `render()` and the loop stopped. See section 9.
+
 - **Not tested in a real browser.** I could only run the logic and a Node canvas render. Still unverified: the HTML HUD and overlay layout, the touch control feel (joystick radius, dead zone, gain and smoothing are `STICK_R`, `STICK_DEAD`, `STICK_STEER_GAIN`, `STICK_STEER_RATE`), and all audio. Check these first.
 - **Props are decorative.** The felt-table clutter (blocks, planks, discs) sits off the track and has no collision, so it cannot be used as an obstacle yet.
 - **AI is simple.** It follows a lane offset, brakes to `vsafe`, and aims by lining up in front of a target. It does not dodge incoming fire or plan overtakes.
@@ -162,3 +164,5 @@ Roughly in order of payoff:
 - Design tokens are CSS variables in `:root`. The look is a dark felt table with chunky toy props, a pop-art red/gold/cyan palette, Bungee for headings and numbers, and Barlow Condensed for UI text.
 - DOM is touched only through cached element references and only when a value changes.
 - Canvas drawing uses the sim's world coordinates through `proj()`. Nothing in the sim knows about the screen.
+- **Cull everything you draw.** `proj()` returns a negative perspective scale for points more than ~900 units behind the camera, and canvas `arc()`/`ellipse()` *throw* on a negative radius. Every object type in `render()` is depth-culled (`-260 < fwd < 1050`) and radii are clamped with `Math.max(0, ...)`. Anything new that can exist far from the player (AI-vs-AI rockets, explosions, mines) must follow the same rule.
+- **The main loop must not die.** `frame()` re-arms `requestAnimationFrame` first and runs `tick()` inside try/catch, so one bad frame logs to the console instead of freezing the game forever. If you see `console.error` output during play, that is a real bug to fix, not noise.
