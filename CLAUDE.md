@@ -2,7 +2,7 @@
 
 A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. Everything lives in one file, `index.html`, with no build step and no assets.
 
-Use this document as context when continuing the project in Claude Code. If you want it picked up automatically, rename it to `CLAUDE.md`.
+This file is the project context for Claude Code. The game is deployed to GitHub Pages from `.github/workflows/pages.yml`.
 
 ---
 
