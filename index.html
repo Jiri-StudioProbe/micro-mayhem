@@ -59,6 +59,31 @@ button { font: inherit; color: inherit; }
   background: rgba(12,24,22,.6); border: 2px solid var(--line); font-size: 12px; font-weight: 700; letter-spacing: .12em; cursor: pointer; }
 .snd.inline { align-self: flex-start; font-size: 14px; padding: 8px 12px; }
 .snd[aria-pressed="true"].assist, .snd[aria-pressed="true"].inline { border-color: var(--gold); color: var(--gold); }
+/* steering lab */
+.hud.lab .read > :nth-child(-n+2), .hud.lab .hull > :not(.labstats) { display: none; }
+.labstats { display: none; }
+.hud.lab .labstats { display: flex; flex-direction: column; gap: 3px; text-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.labstats .hulltxt { justify-content: flex-start; gap: 10px; }
+.labstats .hulltxt b { font-size: 17px; }
+.pad.lab .fire { display: none; }
+.tune { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; width: min(310px, 42vw); display: flex; flex-direction: column;
+  background: rgb(14,28,25); border-left: 2px solid var(--line); padding-right: env(safe-area-inset-right, 0px); }
+.tune[hidden] { display: none; }
+.tune-head { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 2px solid var(--line); }
+.tune-head b { font-family: var(--display); font-weight: 400; font-size: 15px; letter-spacing: .04em; margin-right: auto; }
+.tune-actions { padding-top: 6px; padding-bottom: 6px; flex-wrap: wrap; }
+.tune-head button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); }
+.tune-head button { padding: 4px 8px; border-radius: 4px; background: rgba(239,233,216,.1); border: 2px solid var(--line); font-size: 12px; font-weight: 700; letter-spacing: .1em; cursor: pointer; }
+.tune-body { flex: 1; overflow-y: auto; touch-action: pan-y; padding: 6px 10px 10px; }
+.trow { padding: 5px 0 7px; border-bottom: 1px solid var(--line); }
+.trow label { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 14px; letter-spacing: .06em; }
+.trow label b { font-variant-numeric: tabular-nums; color: var(--gold); font-size: 16px; }
+.trow label b i { font-style: normal; font-size: 11px; opacity: .6; color: var(--paper); margin-left: 4px; }
+.trow input[type=range] { width: 100%; height: 26px; margin: 0; accent-color: var(--hot); touch-action: pan-y; }
+.trow small { display: block; font-size: 11px; line-height: 1.15; opacity: .65; letter-spacing: .03em; font-weight: 500; }
+.tune textarea { margin: 0; width: 100%; height: 52px; resize: none; border: 0; border-top: 2px solid var(--line); background: rgba(0,0,0,.35); color: var(--paper);
+  font: 10px/1.25 ui-monospace, monospace; padding: 4px 10px; user-select: text; -webkit-user-select: text; touch-action: pan-y; }
+@media (orientation: portrait) { .tune { top: 0; left: 0; bottom: auto; width: auto; height: 46vh; border-left: 0; border-bottom: 2px solid var(--line); } }
 #dbg { position: fixed; left: 6px; bottom: 6px; z-index: 9; padding: 2px 6px; border-radius: 3px; background: rgba(0,0,0,.65); color: #9f9; font: 11px/1.3 ui-monospace, monospace; pointer-events: none; white-space: pre; }
 #toasts { position: absolute; left: 0; right: 0; top: 150px; pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-inline: 16px; }
 .toast { padding: 6px 14px; border-radius: 4px; background: rgba(12,24,22,.82); border: 2px solid var(--line); font-weight: 700; letter-spacing: .1em; font-size: 17px;
@@ -116,7 +141,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
   font-family: var(--display); font-size: 22px; letter-spacing: .04em; box-shadow: 0 5px 0 #a8321a; transition: transform .08s, box-shadow .08s; }
 .cta:hover { filter: brightness(1.08); }
 .cta:active { transform: translateY(4px); box-shadow: 0 1px 0 #a8321a; }
-.cta:focus-visible, .snd:focus-visible, .pad .fire:focus-visible, .pad .brake:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+.cta:focus-visible, .snd:focus-visible, .tune button:focus-visible, .tune input:focus-visible, .pad .fire:focus-visible, .pad .brake:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .stat { padding: 10px 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .stat b { font-family: var(--display); font-weight: 400; font-size: clamp(22px, 6vw, 32px); font-variant-numeric: tabular-nums; line-height: 1; }
@@ -140,12 +165,19 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <div class="hulltxt"><span class="lab">Hull</span><b id="hpn">100</b></div>
         <div class="bar"><i id="hp"></i></div>
         <div class="wpn" id="wpn"><span id="wname">NO WEAPON</span><span id="wammo"></span></div>
+        <div class="labstats" id="labstats">
+          <div class="hulltxt"><span class="lab">Last lap</span><b id="lsLast">&mdash;</b></div>
+          <div class="hulltxt"><span class="lab">Best lap</span><b id="lsBest">&mdash;</b></div>
+          <div class="hulltxt"><span class="lab">Wall touches</span><b id="lsHits">0</b></div>
+        </div>
       </div>
       <canvas id="mini" width="200" height="200" aria-label="Track map"></canvas>
     </div>
     <div class="hud-btns">
       <button class="snd" id="snd" type="button" aria-pressed="true">SOUND ON</button>
       <button class="snd assist" id="assistHud" type="button" aria-pressed="false">ASSIST OFF</button>
+      <button class="snd" id="tuneBtn" type="button" hidden>TUNE</button>
+      <button class="snd" id="labExit" type="button" hidden>EXIT LAB</button>
     </div>
     <div id="toasts" aria-live="polite"></div>
     <div id="cd" hidden></div>
@@ -159,6 +191,13 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
     <button class="fire" data-act="fire" type="button">FIRE</button>
   </div>
 
+  <aside class="tune" id="tune" hidden aria-label="Steering tuning">
+    <div class="tune-head"><b>STEERING</b><button id="tuneClose" type="button" aria-label="Close panel">&#10005;</button></div>
+    <div class="tune-head tune-actions"><button id="assistTune" type="button" aria-pressed="false">ASSIST OFF</button><button id="tuneReset" type="button">RESET</button><button id="tuneCopy" type="button">COPY</button><button id="tuneExit" type="button">EXIT</button></div>
+    <div class="tune-body" id="tuneBody"></div>
+    <textarea id="tuneOut" readonly aria-label="Current values, to copy"></textarea>
+  </aside>
+
   <div class="overlay" id="menu">
     <div class="card">
       <div class="flag" aria-hidden="true"></div>
@@ -171,6 +210,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <li><span>FIRE</span><kbd>SPACE</kbd></li>
       </ul>
       <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself and you slide left/right to steer. FIRE and BRAKE are on the right. Driving assist keeps you off the walls and slows you for tight corners; switch it on or off here or during the race. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
+      <button class="snd inline" id="labBtn" type="button">STEERING LAB &middot; empty track, no weapons</button>
       <button class="snd inline" id="assistMenu" type="button" aria-pressed="false">DRIVING ASSIST: OFF</button>
       <button class="cta" id="start" type="button">Start race</button>
     </div>
@@ -288,23 +328,25 @@ function newCar(S, k, gridK) {
 function create() {
   const S = { cars: [], bullets: [], rockets: [], mines: [], parts: [], rings: [], crates: [], events: [],
     t: 0, raceT: 0, state: 'race', cd: 0, input: { steer: 0, thr: 0, brk: 0, fire: 0 },
-    shake: 0, finishOrder: [], result: null, deadT: 0, player: null };
+    shake: 0, finishOrder: [], result: null, deadT: 0, player: null, lab: false, touches: 0,
+    tune: { assistLane: 1, assistSpeed: 1.1 } };
   reset(S, 'attract');
   return S;
 }
 
 function reset(S, mode) {
   S.cars.length = S.bullets.length = S.rockets.length = S.mines.length = S.parts.length = S.rings.length = S.crates.length = 0;
-  S.finishOrder.length = 0; S.result = null; S.deadT = 0; S.raceT = 0; S.shake = 0;
+  S.finishOrder.length = 0; S.result = null; S.deadT = 0; S.raceT = 0; S.shake = 0; S.touches = 0;
+  S.lab = mode === 'lab';   // steering lab: the player alone, no crates, no damage, no end
   const order = [0, 1, 2, 3, 4, 5];
   const playerSlot = 3;
   const slots = [0, 1, 2, 4, 5]; let si = 0;
-  for (let k = 0; k < 6; k++) {
+  for (let k = 0; k < (S.lab ? 1 : 6); k++) {
     const slot = k === 0 ? playerSlot : slots[si++];
     S.cars.push(newCar(S, k, slot));
   }
   S.player = S.cars[0];
-  const G = 11;
+  const G = S.lab ? 0 : 11;
   for (let g = 0; g < G; g++) {
     const idx = Math.floor(N * (g + 0.55) / G);
     for (const lat of [-46, 0, 46]) {
@@ -312,6 +354,7 @@ function reset(S, mode) {
     }
   }
   if (mode === 'attract') { S.state = 'race'; S.player.auto = true; S.attract = true; }
+  else if (S.lab) { S.state = 'race'; S.player.auto = false; S.attract = false; }
   else { S.state = 'countdown'; S.cd = 3.4; S.cdShown = 4; S.player.auto = false; S.attract = false; }
 }
 
@@ -341,7 +384,7 @@ function debris(S, c) {
 
 /* ---------- damage ---------- */
 function hurt(S, c, amt, by) {
-  if (!c.alive || amt <= 0) return;
+  if (!c.alive || amt <= 0 || S.lab) return;
   c.hp -= amt; c.flash = 0.14;
   if (c.isPlayer) S.events.push({ t: 'hurt', amt });
   if (c.hp <= 0) destroy(S, c, by);
@@ -443,15 +486,14 @@ function aiControl(S, c, dt) {
 // Thumb steering is noisy and a phone player can't lift off the gas mid-corner, so the car helps:
 // it holds the lane it is in (steering along the track and away from the walls) and sheds speed
 // before corners it could not take. The driver's own steering always takes priority.
-const ASSIST_SPEED = 1.1;      // corner speed allowed, as a multiple of the AI's safe speed
-function assist(c) {
+function assist(S, c) {
   const spd = Math.hypot(c.vx, c.vy), f = Math.cos(c.a), s = Math.sin(c.a), vf = c.vx * f + c.vy * s;
   const i = c.idx, d = (c.x - T.x[i]) * T.nx[i] + (c.y - T.y[i]) * T.ny[i];
   const lane = clamp(d, -(HALF_W - 44), HALF_W - 44);
   const ti = (i + 3 + Math.floor(spd / 75)) % N;
   const da = angDiff(c.a, Math.atan2(T.y[ti] + T.ny[ti] * lane - c.y, T.x[ti] + T.nx[ti] * lane - c.x));
-  if (vf > 20) c.steer = clamp(c.steer + clamp(da * 2.8, -1, 1) * (1 - Math.min(1, Math.abs(c.steer) * 1.3)), -1, 1);
-  const vmax = T.vsafe[i] * ASSIST_SPEED;
+  if (vf > 20) c.steer = clamp(c.steer + clamp(da * 2.8, -1, 1) * (1 - Math.min(1, Math.abs(c.steer) * 1.3)) * S.tune.assistLane, -1, 1);
+  const vmax = T.vsafe[i] * S.tune.assistSpeed;   // corner speed allowed, as a multiple of the AI's safe speed
   if (vf > vmax) c.throttle = 0;
   if (vf > vmax * 1.18 && !c.brake) c.brake = 1;
 }
@@ -478,6 +520,7 @@ function drive(c, dt) {
 function walls(S, c, dt, track) {
   c.idx = nearest(c.x, c.y, c.idx);
   const i = c.idx, d = (c.x - T.x[i]) * T.nx[i] + (c.y - T.y[i]) * T.ny[i], lim = HALF_W - 11;
+  if (c.isPlayer) { const hit = Math.abs(d) > lim; if (hit && !c.touching) S.touches++; c.touching = hit; }
   if (Math.abs(d) > lim) {
     const sg = d > 0 ? 1 : -1, over = Math.abs(d) - lim;
     c.x -= T.nx[i] * sg * over; c.y -= T.ny[i] * sg * over;
@@ -537,14 +580,14 @@ function step(S, dt) {
     if (S.state === 'countdown') { c.vx = c.vy = 0; continue; }
     if (c.isPlayer && !c.auto) {
       c.steer = S.input.steer; c.throttle = S.input.thr; c.brake = S.input.brk; c.fire = S.input.fire;
-      if (S.assist && S.state === 'race') assist(c);
+      if (S.assist && S.state === 'race') assist(S, c);
     } else aiControl(S, c, dt);
     drive(c, dt);
     walls(S, c, dt, true);
     if (c.fire) tryFire(S, c);
     if (c.hp < 45 && Math.random() < dt * 9) smoke(S, c.x, c.y, 9, c.hp < 25);
     if (c.hp < 24 && Math.random() < dt * 14) flame(S, c.x, c.y, 8);
-    if (!c.finished && c.prog >= LAPS * N) {
+    if (!c.finished && !S.lab && c.prog >= LAPS * N) {
       c.finished = true; S.finishOrder.push(c); c.place = S.finishOrder.length; c.finishT = S.raceT;
       S.events.push({ t: 'finish', car: c });
       if (c.isPlayer) { c.auto = true; endRace(S, 'finish'); }
@@ -650,7 +693,7 @@ function step(S, dt) {
   for (let i = S.rings.length - 1; i >= 0; i--) { const r = S.rings[i]; r.t -= dt; if (r.t <= 0) S.rings.splice(i, 1); else r.r = r.max * (1 - r.t / r.life); }
 
   // end of race checks
-  if (S.state === 'race' && !S.attract) {
+  if (S.state === 'race' && !S.attract && !S.lab) {
     if (!P.alive) { S.deadT += dt; if (S.deadT > 1.8) endRace(S, 'wrecked'); }
     else if (S.cars.every(c => c === P || !c.alive)) endRace(S, 'last');
   }
@@ -733,6 +776,7 @@ window.addEventListener('keydown', e => {
   const a = KEYMAP[e.code];
   if (e.code === 'Enter' || (e.code === 'Space' && overlayOpen())) { if (overlayOpen()) { e.preventDefault(); startRace(); return; } }
   if (e.code === 'KeyM') { toggleMute(); return; }
+  if (e.code === 'Escape' && S.lab) { exitLab(); return; }
   if (a) { e.preventDefault(); keys.add(a); initAudio(); }
 });
 window.addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) keys.delete(a); });
@@ -748,27 +792,43 @@ padEl.querySelectorAll('button').forEach(b => {
 });
 /* Drive joystick: the base re-centres on wherever the thumb lands in the left zone. */
 const stickZone = $('stickZone'), stickEl = $('stick'), knobEl = $('knob');
-const STICK_R = 48, STICK_DEAD = 0.08;
-const STICK_STEER_GAIN = 2.2;   // full steering lock at ~45% deflection, so a small thumb movement turns hard
-const STICK_STEER_RATE = 45;    // stick steering smoothing (1/s); keys use 9 to ease in, a thumb needs almost none
+/* Touch steering tunables. `def` is the baked-in default; the Steering Lab panel edits these live and
+   remembers them in localStorage. Stick steering = sign(x) * min(maxLock, gain * |x|^curve), then eased by `rate`. */
+const TUNE_DEFS = [
+  { k: 'gain',        label: 'Sensitivity',           min: 0.5, max: 4,   step: 0.05, def: 1.5,  hint: 'How hard the car turns for a given thumb movement. Higher = twitchier.' },
+  { k: 'curve',       label: 'Fine control',          min: 1,   max: 3,   step: 0.05, def: 1.4,  hint: 'Above 1, small movements steer very gently while big ones still reach full lock.' },
+  { k: 'maxLock',     label: 'Maximum lock',          min: 0.3, max: 1,   step: 0.05, def: 1,    hint: 'Caps how sharply the car can ever turn. Lower = wider, calmer turns.' },
+  { k: 'speedDamp',   label: 'Calmer at speed',       min: 0,   max: 0.8, step: 0.05, def: 0,    hint: 'Reduces steering as the car goes faster, the way real cars feel stable at speed.' },
+  { k: 'rate',        label: 'Reactivity',            min: 4,   max: 60,  step: 1,    def: 45,   hint: 'How quickly the steering follows your thumb. Higher = snappier, lower = smoother but laggier.' },
+  { k: 'dead',        label: 'Dead zone',             min: 0,   max: 0.3, step: 0.01, def: 0.08, hint: 'Thumb movement around the centre that is ignored. Stops tiny wobbles.' },
+  { k: 'radius',      label: 'Stick travel (px)',     min: 30,  max: 100, step: 1,    def: 48,   hint: 'How far the thumb moves for full deflection. Bigger = finer control, more thumb travel.' },
+  { k: 'assistLane',  label: 'Assist: lane hold',     min: 0,   max: 1.5, step: 0.05, def: 1,    hint: 'How strongly the car steers itself along the track when you ease off. Needs ASSIST on.' },
+  { k: 'assistSpeed', label: 'Assist: corner speed',  min: 0.8, max: 1.5, step: 0.02, def: 1.1,  hint: 'Higher lets you carry more speed into corners before the assist slows you. Needs ASSIST on.' }
+];
+const tune = {};
+TUNE_DEFS.forEach(d => { tune[d.k] = d.def; });
+try {
+  const saved = JSON.parse(localStorage.getItem('mm-tune') || '{}');
+  TUNE_DEFS.forEach(d => { if (typeof saved[d.k] === 'number' && isFinite(saved[d.k])) tune[d.k] = clamp(saved[d.k], d.min, d.max); });
+} catch (_) {}
 const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
 function stickMove(e) {
   const zr = stickZone.getBoundingClientRect();
   const h = stickEl.offsetWidth / 2;
   let dx = e.clientX - zr.left - stick.ox, dy = e.clientY - zr.top - stick.oy;
-  const d = Math.hypot(dx, dy);
-  if (d > STICK_R) {
+  const R = tune.radius, d = Math.hypot(dx, dy);
+  if (d > R) {
     // the base trails the thumb, so reversing a flick never means travelling back across the whole stick
-    const pull = (d - STICK_R) / d;
+    const pull = (d - R) / d;
     stick.ox = Math.min(Math.max(stick.ox + dx * pull, h), zr.width - h);
     stick.oy = Math.min(Math.max(stick.oy + dy * pull, h), zr.height - h);
     stickEl.style.left = (stick.ox - h) + 'px'; stickEl.style.top = (stick.oy - h) + 'px';
     dx = e.clientX - zr.left - stick.ox; dy = e.clientY - zr.top - stick.oy;
     const d2 = Math.hypot(dx, dy);
-    if (d2 > STICK_R) { dx *= STICK_R / d2; dy *= STICK_R / d2; }
+    if (d2 > R) { dx *= R / d2; dy *= R / d2; }
   }
-  const nx = dx / STICK_R, ny = dy / STICK_R, m = Math.hypot(nx, ny);
-  const k = m < STICK_DEAD ? 0 : (m - STICK_DEAD) / (1 - STICK_DEAD) / m;
+  const nx = dx / R, ny = dy / R, m = Math.hypot(nx, ny), dz = tune.dead;
+  const k = m < dz ? 0 : (m - dz) / (1 - dz) / m;
   stick.x = nx * k; stick.y = ny * k;
   knobEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
 }
@@ -792,22 +852,25 @@ stickZone.addEventListener('pointermove', e => { if (e.pointerId === stick.id) {
 const stickEnd = e => { if (e.pointerId === stick.id) stickRelease(); };
 stickZone.addEventListener('pointerup', stickEnd); stickZone.addEventListener('pointercancel', stickEnd); stickZone.addEventListener('lostpointercapture', stickEnd);
 stickZone.addEventListener('contextmenu', e => e.preventDefault());
-document.addEventListener('touchmove', e => { if (!(e.target.closest && e.target.closest('.overlay'))) e.preventDefault(); }, { passive: false });
+document.addEventListener('touchmove', e => { if (!(e.target.closest && e.target.closest('.overlay, .tune'))) e.preventDefault(); }, { passive: false });
 if (window.matchMedia && matchMedia('(pointer: coarse)').matches) padEl.classList.add('avail');
 window.addEventListener('touchstart', () => padEl.classList.add('avail'), { once: true, passive: true });
 const has = a => keys.has(a) || touch.has(a);
 function readInput(dt) {
   const kb = (has('right') ? 1 : 0) - (has('left') ? 1 : 0);
-  const sx = Math.max(-1, Math.min(1, stick.x * STICK_STEER_GAIN));
+  // stick steering: response curve, lock cap and speed damping (all tunable), keys stay binary
+  const ax = Math.min(1, Math.abs(stick.x));
+  let sx = Math.sign(stick.x) * Math.min(tune.maxLock, tune.gain * Math.pow(ax, tune.curve));
+  if (sx) sx *= 1 - tune.speedDamp * clamp(Math.hypot(S.player.vx, S.player.vy) / 372, 0, 1);
   const target = kb || sx;
-  // a thumb is already a smooth analog input, so the stick needs less smoothing than a key press
-  const rate = kb ? (target === 0 ? 14 : 9) : STICK_STEER_RATE;
+  const rate = kb ? (target === 0 ? 14 : 9) : tune.rate;   // a thumb is already a smooth input, so the stick needs less smoothing than a key press
   input.steer += (target - input.steer) * Math.min(1, dt * rate);
   if (Math.abs(input.steer) < 0.01) input.steer = 0;
   // left thumb down = foot down, always. Braking/reversing is the separate BRAKE button.
   input.thr = has('gas') || (stick.id !== null && !has('brake')) ? 1 : 0;
   input.brk = has('brake') ? 1 : 0;
   input.fire = has('fire') ? 1 : 0;
+  S.tune.assistLane = tune.assistLane; S.tune.assistSpeed = tune.assistSpeed;
 }
 
 /* ---------- ui ---------- */
@@ -818,13 +881,14 @@ const ord = n => n + (['TH', 'ST', 'ND', 'RD'][(n % 100 > 10 && n % 100 < 14) ? 
 const overlayOpen = () => !menu.hidden || !endEl.hidden;
 function toggleMute() { muted = !muted; sndBtn.textContent = muted ? 'SOUND OFF' : 'SOUND ON'; sndBtn.setAttribute('aria-pressed', String(!muted)); if (AC) { if (muted) AC.suspend(); else AC.resume(); } }
 sndBtn.addEventListener('click', toggleMute);
-const assistBtns = [$('assistHud'), $('assistMenu')];
-let assistChosen = false;
+const assistBtns = [$('assistHud'), $('assistMenu'), $('assistTune')];
+let assistChosen = false, tuneReady = false;
 function setAssist(on, byUser) {
   S.assist = on;
-  assistBtns[0].textContent = on ? 'ASSIST ON' : 'ASSIST OFF'; assistBtns[1].textContent = 'DRIVING ASSIST: ' + (on ? 'ON' : 'OFF');
+  assistBtns[0].textContent = assistBtns[2].textContent = on ? 'ASSIST ON' : 'ASSIST OFF'; assistBtns[1].textContent = 'DRIVING ASSIST: ' + (on ? 'ON' : 'OFF');
   assistBtns.forEach(b => b.setAttribute('aria-pressed', String(on)));
   if (byUser) { assistChosen = true; try { localStorage.setItem('mm-assist', on ? '1' : '0'); } catch (_) {} }
+  if (tuneReady) tuneOut.value = tuneText();
 }
 try { const v = localStorage.getItem('mm-assist'); if (v !== null) assistChosen = true; setAssist(v === null ? COARSE : v === '1', false); } catch (_) { setAssist(COARSE, false); }
 assistBtns.forEach(b => b.addEventListener('click', () => setAssist(!S.assist, true)));
@@ -837,10 +901,79 @@ function toast(text, cls) {
 }
 function fmtTime(t) { const m = Math.floor(t / 60), s = t - m * 60; return m + ':' + (s < 10 ? '0' : '') + s.toFixed(1); }
 let overTimer = 0, lastCdText = '';
-function startRace() {
+
+/* ---------- steering lab ---------- */
+const tuneEl = $('tune'), tuneBody = $('tuneBody'), tuneOut = $('tuneOut'), tuneBtn = $('tuneBtn'), labExitBtn = $('labExit');
+const lab = { lap: -1, t0: null, last: null, best: null, touches0: 0, prevHits: null };
+function tuneText() {
+  const o = {}; TUNE_DEFS.forEach(d => { o[d.k] = +tune[d.k].toFixed(3); }); o.assist = S.assist ? 'on' : 'off';
+  return JSON.stringify(o);
+}
+function refreshTune(save) {
+  TUNE_DEFS.forEach(d => {
+    const v = tune[d.k], el = $('tv_' + d.k);
+    el.firstChild.nodeValue = String(+v.toFixed(2));
+    el.lastChild.textContent = v === d.def ? 'default' : 'default ' + d.def;
+  });
+  stickEl.style.width = stickEl.style.height = (2 * tune.radius + 36) + 'px';
+  tuneOut.value = tuneText();
+  if (save) { try { localStorage.setItem('mm-tune', JSON.stringify(tune)); } catch (_) {} }
+}
+TUNE_DEFS.forEach(d => {
+  const row = document.createElement('div'); row.className = 'trow';
+  row.innerHTML = '<label for="t_' + d.k + '"><span>' + d.label + '</span><b id="tv_' + d.k + '">0<i></i></b></label>' +
+    '<input type="range" id="t_' + d.k + '" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '"><small>' + d.hint + '</small>';
+  tuneBody.appendChild(row);
+  const inp = row.querySelector('input'); inp.value = tune[d.k];
+  inp.addEventListener('input', () => { tune[d.k] = +inp.value; refreshTune(true); });
+});
+$('tuneReset').addEventListener('click', () => { TUNE_DEFS.forEach(d => { tune[d.k] = d.def; $('t_' + d.k).value = d.def; }); refreshTune(true); });
+$('tuneCopy').addEventListener('click', () => {
+  tuneOut.value = tuneText(); tuneOut.focus(); tuneOut.select();
+  const b = $('tuneCopy'), done = ok => { b.textContent = ok ? 'COPIED' : 'SELECTED'; setTimeout(() => { b.textContent = 'COPY'; }, 1400); };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tuneOut.value).then(() => done(true), () => done(false)); else done(false);
+});
+function openTune(open) { tuneEl.hidden = !open; if (open) refreshTune(false); }
+tuneBtn.addEventListener('click', () => openTune(tuneEl.hidden));
+$('tuneClose').addEventListener('click', () => openTune(false));
+refreshTune(false);
+// Lap timing: prog counts track samples, so floor(prog / N) is the lap index (-1 = still behind the start line).
+function labTrack() {
+  const P = S.player, lapNo = Math.floor(P.prog / N);
+  if (lapNo > lab.lap) {
+    if (lab.t0 !== null) { lab.last = S.t - lab.t0; lab.best = lab.best === null ? lab.last : Math.min(lab.best, lab.last); lab.prevHits = S.touches - lab.touches0; }
+    lab.t0 = S.t; lab.touches0 = S.touches; lab.lap = lapNo;
+  } else if (lapNo < lab.lap) { lab.lap = lapNo; lab.t0 = null; }   // reversed over the line: this lap doesn't count
+}
+const setTxt = (el, v) => { if (el._v !== v) { el._v = v; el.textContent = v; } };
+function labHud() {
+  setTxt(lapEl, String(Math.max(1, Math.floor(S.player.prog / N) + 1)));
+  const lt = t => t === null ? '\u2014' : t.toFixed(1) + ' s';
+  setTxt($('lsLast'), lt(lab.last)); setTxt($('lsBest'), lt(lab.best));
+  const cur = S.touches - lab.touches0;
+  setTxt($('lsHits'), cur + (lab.prevHits === null ? '' : '  (last lap ' + lab.prevHits + ')'));
+}
+function setLab(on) {
+  hud.classList.toggle('lab', on); padEl.classList.toggle('lab', on);
+  tuneBtn.hidden = labExitBtn.hidden = !on;
+  if (on) { padEl.classList.add('avail'); openTune(true); } else openTune(false);
+}
+function exitLab() {
+  setLab(false); reset(S, 'attract');
+  stickRelease(); input.steer = input.thr = input.brk = input.fire = 0;
+  hud.hidden = true; padEl.classList.remove('live'); endEl.hidden = true; menu.hidden = false;
+}
+labExitBtn.addEventListener('click', exitLab); $('tuneExit').addEventListener('click', exitLab);
+tuneReady = true;
+$('labBtn').addEventListener('click', () => startRace('lab'));
+
+function startRace(mode) {
+  if (typeof mode !== 'string') mode = 'race';   // used directly as a click/key handler
   initAudio();
   clearTimeout(overTimer);
-  reset(S, 'race');
+  setLab(mode === 'lab');
+  if (mode === 'lab') { Object.assign(lab, { lap: -1, t0: null, last: null, best: null, touches0: 0, prevHits: null }); }
+  reset(S, mode);
   input.steer = input.thr = input.brk = input.fire = 0;
   menu.hidden = true; endEl.hidden = true; hud.hidden = false; padEl.classList.add('live'); toasts.textContent = '';
   cam.x = S.player.x; cam.y = S.player.y; cam.a = S.player.a; focus = S.player; hurtFlash = 0;
@@ -895,6 +1028,7 @@ function handleEvents() {
 let hurtFlash = 0, focus = S.player;
 let lastPos = -1, lastLap = '', lastHp = -1, lastW = '';
 function updateHud() {
+  if (S.lab) { labHud(); return; }
   const P = S.player, rank = ranking(S), pos = rank.indexOf(P) + 1;
   if (pos !== lastPos) { lastPos = pos; posEl.innerHTML = pos + '<sup>' + ord(pos).slice(String(pos).length) + '</sup>'; }
   const lap = clamp(Math.floor(P.prog / N) + 1, 1, LAPS) + '/' + LAPS;
@@ -1214,6 +1348,7 @@ function frame(now) {
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
 }
+if (/[?&]lab\b/.test(location.search)) startRace('lab');
 const dbg = /[?&]debug\b/.test(location.search) ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 let ft = 16.7, lastAdj = performance.now() + 3000, dbgT = 0, dbgS = 0, dbgN = 0;
 function tick(now) {
@@ -1226,6 +1361,7 @@ function tick(now) {
   readInput(dt);
   const subs = Math.max(1, Math.ceil(dt / (1 / 60)));
   for (let k = 0; k < subs; k++) step(S, dt / subs);
+  if (S.lab) labTrack();
   handleEvents();
   hurtFlash = Math.max(0, hurtFlash - dt * 2.2);
 

@@ -11,7 +11,7 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 - Open `index.html` in a browser, or serve the folder (`npx serve .` or `python3 -m http.server`).
 - The only network dependency is Google Fonts (Bungee for display, Barlow Condensed for UI). Both have system fallbacks, so the game works offline.
 - Desktop: arrow keys or WASD to steer and accelerate, Space or F or Shift to fire, `M` to mute, Enter or Space to start from a menu.
-- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick. Left thumb down = gas always on; x steers (analog, gain `STICK_STEER_GAIN`, full lock at about 45% deflection, almost unsmoothed via `STICK_STEER_RATE`). The base appears where the thumb lands and trails it when it leaves `STICK_R`. Right thumb: FIRE button, plus a small BRAKE/REVERSE button beside it. **Driving assist** (see section 5b) is on by default on touch devices and off on desktop; toggle it from the start screen or the HUD, the choice is stored in `localStorage` (`mm-assist`).
+- Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick. Left thumb down = gas always on; x steers (analog; response is `sign(x) * min(maxLock, gain * |x|^curve)` then eased by `rate`, all in `TUNE_DEFS`, see section 5c). The base appears where the thumb lands and trails it when it leaves the stick radius. Right thumb: FIRE button, plus a small BRAKE/REVERSE button beside it. **Driving assist** (see section 5b) is on by default on touch devices and off on desktop; toggle it from the start screen or the HUD, the choice is stored in `localStorage` (`mm-assist`).
 
 ## 2. What exists
 
@@ -115,6 +115,13 @@ All values are in the Sim IIFE unless noted.
 - **Frame rate.** `tick()` catches the sim up in <=1/60 s sub-steps for up to 0.25 s of lag, so the world stays real time on slow phones (it used to run in slow motion below 20 fps). If frames stay slower than 26 ms the canvas resolution steps down (`RES_STEPS`, never back up, to avoid flip-flopping); phones start capped at 1.5x device pixel ratio.
 - **Diagnosing a device.** Open the game with `?debug` (for example `.../micro-mayhem/?debug`) to get an overlay with fps, frame time, canvas resolution and sim speed (should read 1.00x).
 
+### 5c. Steering Lab and tuning panel
+
+- **Lab mode.** `reset(S, 'lab')` / `S.lab`: the player alone on the track, no rivals, no crates or weapons, no countdown, damage disabled (`hurt()` returns early), and the race never ends (finish and last-car checks are skipped). Start it from the start screen (STEERING LAB) or open the game with `?lab`. `Esc` or EXIT leaves it. The HUD shows last lap, best lap and wall touches (`S.touches`, counted on the rising edge of the player touching a wall).
+- **Panel.** `TUNE_DEFS` in the shell is the single list of tunables (key, label, range, hint, **baked-in default `def`**). The panel builds a slider per entry, persists changes to `localStorage` (`mm-tune`), and has RESET (back to `def`), COPY (JSON of the current values, for baking in) and the ASSIST toggle. It is a side panel in landscape and a top sheet in portrait so the left thumb can keep driving while the right adjusts sliders.
+- **Baking in new defaults.** Paste the COPY output, then copy each value into the matching `def` in `TUNE_DEFS`. `assistLane` and `assistSpeed` are pushed into `S.tune` every frame and read by `assist()`; the others are shell-only (`readInput()` and `stickMove()`).
+- **What each tunable does.** `gain` scales the stick; `curve` (>1) makes the centre gentler; `maxLock` caps steering; `speedDamp` reduces steering with speed; `rate` is the smoothing speed; `dead` is the dead zone; `radius` is thumb travel for full deflection (also sizes the stick graphic); `assistLane` scales the assist's lane-hold steering; `assistSpeed` is the corner speed the assist allows, as a multiple of the AI's safe speed.
+
 ## 6. Testing without a browser
 
 Because `Sim` is pure, you can run headless races. Save the `Sim` IIFE to `sim.js` (keep the `module.exports` line) and:
@@ -145,7 +152,7 @@ The renderer can be checked in Node with `@napi-rs/canvas`: stub `document`, `wi
 
 - **Freeze bug, fixed (v1.3).** Rockets and shockwave rings were not culled, so a distant AI-vs-AI explosion threw `IndexSizeError` in `render()` and the loop stopped. See section 9.
 
-- **Not tested in a real browser.** I could only run the logic and a Node canvas render. Still unverified: the HTML HUD and overlay layout, the touch control feel (joystick radius, dead zone, gain and smoothing are `STICK_R`, `STICK_DEAD`, `STICK_STEER_GAIN`, `STICK_STEER_RATE`), and all audio. Check these first.
+- **Not tested in a real browser.** I could only run the logic and a Node canvas render. Still unverified: the HTML HUD and overlay layout, the touch control feel (tune it in the Steering Lab, section 5c), and all audio. Check these first.
 - **Props are decorative.** The felt-table clutter (blocks, planks, discs) sits off the track and has no collision, so it cannot be used as an obstacle yet.
 - **AI is simple.** It follows a lane offset, brakes to `vsafe`, and aims by lining up in front of a target. It does not dodge incoming fire or plan overtakes.
 - **Difficulty is one fixed setting.** The player's top speed is 372. AI cars cap at 366 times their skill (0.84 to 0.96, randomised per race), so even the best AI car is slower than a clean human lap.
