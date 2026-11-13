@@ -1,6 +1,6 @@
 # Micro Mayhem: project documentation
 
-A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. Everything lives in one file, `index.html`, with no build step and no assets.
+A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup, the CSS and, for now, the game shell as one inline module; the simulation lives in `src/sim/sim.js`. There is no build step and no image assets. The shell is being split into modules in M0.5 to M0.7 (see `docs/ROADMAP.md`).
 
 This file is the project context for Claude Code. The game is deployed to GitHub Pages by `.github/workflows/pages.yml`: every push runs the tests, and a push to `main` that passes them is deployed and then verified against the live site (see section 9). **Planned features and the architecture they need are in `docs/ROADMAP.md`; read it before starting character creation, car selection, saved scores, aura/shop or new tracks.**
 
@@ -8,7 +8,7 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 
 ## 1. Run it
 
-- Open `index.html` in a browser, or serve the folder (`npx serve .` or `python3 -m http.server`).
+- Serve the folder and open it: `npm run serve` (or `python3 -m http.server`), then http://localhost:8000. Opening `index.html` straight from disk no longer works, because browsers refuse to load ES modules over `file://`.
 - The game has no network dependencies: the fonts (Bungee for display, Barlow Condensed for UI) are hosted with the game in `fonts/` (SIL Open Font License, notices in `fonts/LICENSES.txt`), so it works fully offline and no third party sees a visitor. The files are Latin subsets; supporting other alphabets (for example in player names) means adding the `latin-ext` files from the `@fontsource` packages and a matching `@font-face` rule. Tests block every non-local request, so a stray third-party link fails the suite.
 - Desktop: arrow keys or WASD to steer and accelerate, Space or F or Shift to fire, `M` to mute, Enter or Space to start from a menu.
 - Touch: an on-screen control scheme appears on the first touch. Left thumb: floating drive joystick. Left thumb down = gas always on; x steers (analog; response is `sign(x) * min(maxLock, gain * |x|^curve)` then eased by `rate`, all in `TUNE_DEFS`, see section 5c). The base appears where the thumb lands and trails it when it leaves the stick radius. Right thumb: FIRE button, plus a small BRAKE/REVERSE button beside it. **Difficulty level** (Rookie or Veteran, chosen on the start screen or in the lab panel) sets whether the **driving assist** (section 5b) starts on and every steering default; see section 5c. The assist can still be toggled from the start screen, the HUD or the lab panel.
@@ -31,12 +31,12 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 
 ## 3. File structure
 
-The whole script is two IIFEs inside one `<script>`:
+The game is an ES module graph. `index.html` has one `<script type="module">` that imports the simulation and then runs the shell:
 
-1. **`const Sim = (() => { ... })()`** is the simulation. It is pure: no DOM, no canvas, no audio, no `window`. It ends with `if (typeof module !== 'undefined') module.exports = Sim;`, so you can lift it into its own file and run it in Node for tests.
-2. **`(() => { ... })()`** is the game shell. It holds the canvas and camera, audio, input, HUD and overlays, the renderer (props, minimap, `render()`) and the main loop. It reads state from `Sim` and writes only to `S.input`.
+1. **`src/sim/sim.js`** is the simulation (`import { Sim } from './src/sim/sim.js'`, also the default export). It is pure: no DOM, canvas, audio, storage, timers, network or `console`. This is **enforced by lint** (`eslint.config.js` gives `src/sim/` no host globals at all, bans importing the shell, and bans `Date`/`globalThis`), so a violation fails CI. Tests and tools import it directly in Node. It was moved out of the page byte for byte in M0.4.
+2. **The game shell** is the rest of the inline module in `index.html`, one IIFE that holds the canvas and camera, audio, input, HUD and overlays, the renderer (props, minimap, `render()`) and the main loop. It reads state from `Sim` and writes only to `S.input`. It is split into `src/` modules in M0.5 to M0.7.
 
-Page structure above the script:
+Page structure above the module script:
 
 - `<style>`: design tokens in `:root` (`--felt`, `--ink`, `--paper`, `--hot`, `--gold`, `--cool`), then HUD, touch pad and overlay styles.
 - `#stage` contains `#c` (main canvas), `#hud` (position, lap, hull bar, weapon, `#mini` minimap canvas, mute button, toasts, countdown), `#pad` (touch controls), `#menu` (start overlay) and `#end` (results overlay).
@@ -126,10 +126,10 @@ All values are in the Sim IIFE unless noted.
 
 ## 6. Testing without a browser
 
-Because `Sim` is pure, you can run headless races. Save the `Sim` IIFE to `sim.js` (keep the `module.exports` line) and:
+Because `Sim` is pure, you can run headless races in plain Node (`package.json` sets `"type": "module"`):
 
 ```js
-const Sim = require('./sim.js');
+import Sim from './src/sim/sim.js';
 const S = Sim.create();
 Sim.reset(S, 'race');
 S.player.auto = true;            // let the AI drive the player car too
@@ -147,7 +147,8 @@ Dev tooling only; nothing here ships to players. One-time setup: `npm install` (
 | Command | What |
 |---|---|
 | `npm test` | Everything below, about 2 minutes |
-| `npm run test:sim` | Headless simulation tests, about 6 s |
+| `npm run lint` | ESLint: undefined names, dead code, and the simulation's purity rules (CI runs it before the tests) |
+| `npm run test:sim` | Headless simulation tests, about 25 s |
 | `npm run test:browser` | Real-browser tests: menus, race flow, touch controls, the lab, saved profile, a 9,000-frame soak |
 | `npm run study` | The driver study (keyboard-style and thumb-style drivers, with and without assist) |
 | `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen |
@@ -195,7 +196,8 @@ Roughly in order of payoff:
 
 ## 9. Conventions used
 
-- Plain browser JavaScript, no dependencies, `'use strict'` inside both IIFEs.
+- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell IIFE is still inline until M0.7.
+- **Lint is part of the build.** `npm run lint` must be clean; CI runs it before the tests. Do not weaken the `src/sim/` rules to make a change compile: pass the data in instead.
 - Design tokens are CSS variables in `:root`. The look is a dark felt table with chunky toy props, a pop-art red/gold/cyan palette, Bungee for headings and numbers, and Barlow Condensed for UI text.
 - DOM is touched only through cached element references and only when a value changes.
 - Canvas drawing uses the sim's world coordinates through `proj()`. Nothing in the sim knows about the screen.

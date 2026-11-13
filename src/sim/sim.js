@@ -107,7 +107,6 @@ function reset(S, mode) {
   S.cars.length = S.bullets.length = S.rockets.length = S.mines.length = S.parts.length = S.rings.length = S.crates.length = 0;
   S.finishOrder.length = 0; S.result = null; S.deadT = 0; S.raceT = 0; S.shake = 0; S.touches = 0;
   S.lab = mode === 'lab';   // steering lab: the player alone, no crates, no damage, no end
-  const order = [0, 1, 2, 3, 4, 5];
   const playerSlot = 3;
   const slots = [0, 1, 2, 4, 5]; let si = 0;
   for (let k = 0; k < (S.lab ? 1 : 6); k++) {

@@ -15,13 +15,13 @@ Recorded at the end of M0.1, on the single-file build. Every later M0 step must 
 
 | What | Baseline | Command |
 |---|---|---|
-| Main-thread JavaScript per frame, full 6-car race, phone viewport | about **3.0 ms** at 60 fps (DPR 1 and 2 are the same: it is JavaScript only) | `npm run perf` |
+| Main-thread JavaScript per frame, full 6-car race, phone viewport | **2.2 to 3.0 ms** at 60 fps (3.0 ms in the first session, 2.2 to 2.4 ms for the identical code a day later; DPR 1 and 2 are the same: it is JavaScript only) | `npm run perf`, and for any comparison `tools/perf-compare.sh <commit>` |
 | Driver study, thumb-style driver, no assist | 0/12 wins, average place 4.3, 8.3 wall hits | `npm run study` |
 | Driver study, thumb-style driver, Rookie assist | 11/12 wins, average place 1.4, 0.1 wall hits | `npm run study` |
 | Driver study, keyboard-style driver | 7/12 wins, average place 2.8, 1 wall hit | `npm run study` |
 | Whole test suite | 40 tests, about 2 min (CI: 1 min 45 s of tests, 2.5 min with setup) | `npm test` |
 
-Expect about 10% noise in the performance numbers and some variation in the driver study (the sim is not seeded until M1). The statistical sim tests use 40 races per driver, chosen by bootstrapping 150 measured races so a false failure is about 0.03% per run.
+**Never judge a refactor against a number written down in an earlier session**; run `tools/perf-compare.sh <commit>`, which measures the earlier commit and the working tree back to back. Expect about 10% noise in the performance numbers and some variation in the driver study (the sim is not seeded until M1). The statistical sim tests use 40 races per driver, chosen by bootstrapping 150 measured races so a false failure is about 0.03% per run.
 
 ## What the tests cover
 

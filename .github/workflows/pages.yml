@@ -23,6 +23,8 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      - name: Lint (undefined names, dead code, and the simulation's purity rules)
+        run: npm run lint
       - name: Cache the browser
         id: browser
         uses: actions/cache@v4

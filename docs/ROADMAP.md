@@ -136,7 +136,7 @@ Each milestone ends in a deployable build, green tests and a short "play it" che
 | M7 | Shop and upgrades | L | Spend aura on parts, weapons, ammo, healing, cars |
 | M8 | More tracks | L | New tracks and a track picker |
 
-**Progress.** M0.1 (test safety net), M0.2 (test, deploy, verify pipeline) and M0.3 (self-hosted fonts, which also closes the Google Fonts privacy item in section 5) are done; see `docs/M0-baseline.md` for the numbers later steps must reproduce. Next: M0.4 to M0.8 (module split, version label, docs).
+**Progress.** M0.1 (test safety net), M0.2 (test, deploy, verify pipeline), M0.3 (self-hosted fonts, which also closes the Google Fonts privacy item in section 5) and M0.4 (simulation moved to `src/sim/sim.js` verbatim, ESLint with the purity rules) are done; see `docs/M0-baseline.md` for the numbers later steps must reproduce. Next: M0.5 to M0.8 (leaf modules, renderer, input/UI/game loop, version label and docs).
 
 **M0. Solid base.** Split into ES modules (mechanical, behaviour-preserving); self-host fonts; add `VERSION`; add the CI job (existing headless tools plus a Playwright smoke test) and make the deploy depend on it; keep a local ring buffer of client errors. *How:* move code without changing it, one module per commit, run the driver study and soak after each. *Done when:* identical behaviour, CI green, the live site shows its version.
 

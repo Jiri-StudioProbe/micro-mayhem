@@ -1,7 +1,7 @@
 import test, { before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { serve } from '../helpers/server.js';
-import { launch, newPage, waitRace, PHONE } from '../helpers/browser.js';
+import { launch, newPage, PHONE } from '../helpers/browser.js';
 
 let srv, browser;
 before(async () => { srv = await serve(); browser = await launch(); });
