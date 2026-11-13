@@ -164,6 +164,8 @@ The renderer can be checked in Node with `@napi-rs/canvas`: stub `document`, `wi
 
 ## 8. Suggested next steps
 
+**The current plan and build order are in `docs/ROADMAP.md` (section 7); the list below is the original v1 wish list and is partly superseded.**
+
 Roughly in order of payoff:
 
 1. **Play-test and tune.** Check handling at phone and desktop sizes, then adjust `LATACC`, steering rate and the damage numbers.
