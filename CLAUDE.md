@@ -140,7 +140,20 @@ for (let t = 0; t < 200 && S.state !== 'over'; t += 1 / 60) {
 console.log(S.state, Sim.ranking(S).map(c => `${c.name}:${Math.round(c.hp)}`));
 ```
 
-`node tools/driver-study.js [runs]` pulls the Sim out of `index.html` and compares keyboard-style and thumb-style drivers with and without assist. Re-run it after any change to physics, steering or the assist.
+### Test suite (added in M0.1)
+
+Dev tooling only; nothing here ships to players. One-time setup: `npm install` (Node 20 or newer; it installs Playwright, which needs its Chromium: `npx playwright install chromium`).
+
+| Command | What |
+|---|---|
+| `npm test` | Everything below, about 2 minutes |
+| `npm run test:sim` | Headless simulation tests, about 6 s |
+| `npm run test:browser` | Real-browser tests: menus, race flow, touch controls, the lab, saved profile, a 9,000-frame soak |
+| `npm run study` | The driver study (keyboard-style and thumb-style drivers, with and without assist) |
+| `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen |
+| `npm run serve` | Local web server on port 8000 |
+
+`docs/M0-baseline.md` records the numbers every refactor must reproduce. Tests open the game with `?debug`, which exposes `window.__mm` (`S`, `input`, `Sim`, `tune`, `level`); keep that hook working. Any change to physics, steering, defaults or the profile should be followed by `npm test`; changing a baked-in default also means updating `tests/browser/lab.test.js` and bumping `PRESET_VERSION`.
 
 Checks worth keeping when you change physics or the track:
 
