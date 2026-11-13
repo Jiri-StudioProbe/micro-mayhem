@@ -10,7 +10,9 @@
     "test:sim": "node --test \"tests/sim/*.test.js\"",
     "test:browser": "node --test --test-concurrency=1 \"tests/browser/*.test.js\"",
     "study": "node tools/driver-study.js",
-    "perf": "node tools/perf.js"
+    "perf": "node tools/perf.js",
+    "test:ci": "node --test --test-reporter=spec --test-concurrency=1 \"tests/**/*.test.js\"",
+    "stage": "node tools/stage-site.mjs _site"
   },
   "devDependencies": {
     "playwright": "1.63.0"
