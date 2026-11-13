@@ -32,7 +32,8 @@ const DETERMINISM = () => {
 // What the HUD, overlays, buttons and the input values look like. (Toasts are left out: they are CSS animations on the real clock.)
 const DOM_STATE = () => {
   const ids = ['hud', 'menu', 'end', 'pad', 'tune', 'cd', 'pos', 'lap', 'hp', 'hpn', 'wname', 'wammo', 'wpn', 'labstats', 'lsLast', 'lsBest', 'lsHits',
-    'snd', 'assistHud', 'assistMenu', 'assistTune', 'levelBlurb', 'tuneBtn', 'labExit', 'tuneOut', 'stick', 'knob', 'endKick', 'endHead', 'stPlace', 'stKills', 'stTime', 'stTimeLab'];
+    'snd', 'assistHud', 'assistMenu', 'assistTune', 'levelBlurb', 'tuneBtn', 'labExit', 'tuneOut', 'stick', 'knob', 'endKick', 'endHead', 'stPlace', 'stKills', 'stTime', 'stTimeLab',
+    'bests', 'bsTimeRace', 'bsTimeBest', 'bsTimeTag', 'bsLapRace', 'bsLapBest', 'bsLapTag', 'bsNote'];
   const o = {};
   for (const id of ids) {
     const e = document.getElementById(id);
@@ -137,6 +138,15 @@ const SCENARIOS = [
   { name: 'ui-start-clears-hurt-flash', device: DESKTOP, url: '?debug', run: async (p, shot) => {
     await shot(20); await p.evaluate(() => { __mm.S.events.push({ t: 'hurt', amt: 40 }); }); await shot(1);
     await p.click('#start'); await shot(1); await shot(3);
+  } },
+  // The records block of the results screen: a first finish (new bests), a slower one, a wreck, and the same after the page is reloaded with the history stored.
+  { name: 'ui-end-records', device: PHONE, url: '?debug', run: async (p, shot) => {
+    const finish = (time, laps) => p.evaluate(([time, laps]) => { const S = __mm.S; S.laps.length = 0; S.laps.push(...laps); S.raceT = time - __mm.Sim.STEP; S.player.prog = __mm.Sim.LAPS * __mm.Sim.N; }, [time, laps]);
+    const race = async force => { await p.tap('#start'); await runFrames(p, 260); await force(); await shot(5); await p.waitForTimeout(1600); await shot(1); };
+    await runFrames(p, 20);
+    await race(() => finish(83.4, [28.1, 27.3, 27.9]));
+    await p.tap('#again'); await runFrames(p, 260); await finish(85.2, [28.6, 28.1, 27.4]); await shot(5); await p.waitForTimeout(1600); await shot(1);
+    await p.tap('#again'); await runFrames(p, 260); await p.evaluate(() => { __mm.S.laps.push(26.5); __mm.S.player.alive = false; __mm.S.player.hp = 0; }); await shot(130); await p.waitForTimeout(1600); await shot(1);
   } },
   { name: 'ui-lab-exit-by-escape', device: DESKTOP, url: '?lab&debug', run: async (p, shot) => { await shot(30); await p.keyboard.press('Escape'); await shot(5); await p.keyboard.press('Enter'); await shot(5); } },
   ...[['finish', () => { __mm.S.player.prog = __mm.Sim.LAPS * __mm.Sim.N; }],

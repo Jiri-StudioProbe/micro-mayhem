@@ -93,11 +93,11 @@ export function cleanBests(raw) {
   for (const k of Object.keys(raw).slice(0, 200)) { if (!KEY_RE.test(k)) continue; const b = cleanBest(raw[k]); if (b) out[k] = b; }
   return out;
 }
-// Folds one race into the bests (mutates them). Returns what the results screen needs: whether this race set a new best time or best lap, and
-// the bests as they were before (null if there was none for this track, level and assist setting).
+// Folds one race into the bests (mutates them). Returns what the results screen needs: whether this race set a new best time or best lap, the
+// bests as they were before (`previous`, null if there was none for this track, level and assist setting) and as they are now (`best`).
 export function updateBests(bests, rec) {
   const key = bestKey(rec);
-  if (key === null) return { key: null, newBestTime: false, newBestLap: false, previous: null };
+  if (key === null) return { key: null, newBestTime: false, newBestLap: false, previous: null, best: null };
   const cur = has(bests, key) ? bests[key] : null;
   const previous = cur ? { time: cur.time, bestLap: cur.bestLap } : null;
   const next = cur ? { ...cur } : { time: null, timeRace: null, bestLap: null, bestLapRace: null };
@@ -105,7 +105,8 @@ export function updateBests(bests, rec) {
   if (rec.result.kind === 'finish' && (next.time === null || rec.result.time < next.time)) { next.time = rec.result.time; next.timeRace = rec.id; newBestTime = true; }
   if (rec.result.bestLap !== null && (next.bestLap === null || rec.result.bestLap < next.bestLap)) { next.bestLap = rec.result.bestLap; next.bestLapRace = rec.id; newBestLap = true; }
   if (newBestTime || newBestLap || !cur) { if (next.time !== null || next.bestLap !== null) bests[key] = next; }
-  return { key, newBestTime, newBestLap, previous };
+  const now = has(bests, key) ? bests[key] : null;
+  return { key, newBestTime, newBestLap, previous, best: now ? { time: now.time, bestLap: now.bestLap } : null };
 }
 export function bestsFromRaces(races) { const b = {}; for (const r of races) updateBests(b, r); return b; }
 // The better of two sets of bests, key by key.
@@ -124,7 +125,7 @@ export function mergeBests(a, b) {
 /* ---------- the history in a profile ---------- */
 // Adds a race to a profile's data (mutates data.races and data.bests). A race with an id already in the history is not added twice.
 export function addRace(data, rec) {
-  if (data.races.some(r => r.id === rec.id)) return { duplicate: true, key: null, newBestTime: false, newBestLap: false, previous: null };
+  if (data.races.some(r => r.id === rec.id)) return { duplicate: true, key: null, newBestTime: false, newBestLap: false, previous: null, best: null };
   data.races.push(rec);
   if (data.races.length > MAX_RACES) data.races.splice(0, data.races.length - MAX_RACES);
   return { duplicate: false, ...updateBests(data.bests, rec) };

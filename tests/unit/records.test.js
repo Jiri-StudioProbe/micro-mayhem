@@ -79,13 +79,13 @@ test('cleanRaces: valid records only, each id once (the first wins), the latest 
 test('bests: the first finish sets both, a slower one changes nothing, a faster one is a new best and says what it beat', () => {
   const b = {};
   let r = updateBests(b, finishRecord('a', 80, [27, 26, 26]));
-  assert.deepEqual(r, { key: 'classic/veteran/manual', newBestTime: true, newBestLap: true, previous: null });
+  assert.deepEqual(r, { key: 'classic/veteran/manual', newBestTime: true, newBestLap: true, previous: null, best: { time: 80, bestLap: 26 } });
   assert.deepEqual(b['classic/veteran/manual'], { time: 80, timeRace: 'a', bestLap: 26, bestLapRace: 'a' });
   r = updateBests(b, finishRecord('b', 85, [28, 28, 28]));
-  assert.deepEqual([r.newBestTime, r.newBestLap, r.previous], [false, false, { time: 80, bestLap: 26 }]);
+  assert.deepEqual([r.newBestTime, r.newBestLap, r.previous, r.best], [false, false, { time: 80, bestLap: 26 }, { time: 80, bestLap: 26 }]);
   assert.equal(b['classic/veteran/manual'].timeRace, 'a');
   r = updateBests(b, finishRecord('c', 79, [27, 26.5, 25.5]));
-  assert.deepEqual([r.newBestTime, r.newBestLap, r.previous], [true, true, { time: 80, bestLap: 26 }]);
+  assert.deepEqual([r.newBestTime, r.newBestLap, r.previous, r.best], [true, true, { time: 80, bestLap: 26 }, { time: 79, bestLap: 25.5 }]);
   assert.deepEqual(b['classic/veteran/manual'], { time: 79, timeRace: 'c', bestLap: 25.5, bestLapRace: 'c' });
   r = updateBests(b, finishRecord('d', 79, [27, 26.5, 25.5]));
   assert.deepEqual([r.newBestTime, r.newBestLap], [false, false], 'a tie is not a new best');
@@ -109,7 +109,7 @@ test('bests are kept apart by level and by assist; a race where assist was toggl
   assert.deepEqual(Object.keys(b).sort(), ['classic/rookie/assist', 'classic/veteran/assist', 'classic/veteran/manual']);
   const mixed = finishRecord('d', 10, [3, 3, 3], { changed: true });
   assert.equal(bestKey(mixed), null); assert.equal(assistTag(mixed), 'mixed');
-  assert.deepEqual(updateBests(b, mixed), { key: null, newBestTime: false, newBestLap: false, previous: null });
+  assert.deepEqual(updateBests(b, mixed), { key: null, newBestTime: false, newBestLap: false, previous: null, best: null });
   assert.equal(b['classic/veteran/manual'].time, 80, 'the impossible 10 s race changed nothing');
 });
 

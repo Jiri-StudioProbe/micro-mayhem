@@ -59,7 +59,7 @@ export function createGame({ S, doc, reset, raceConfig, recorder, diag, audio, h
         case 'over':
           // Every race that ends is saved to the history. A failure here must never stop the results screen from appearing.
           try { lastRace = recorder.recordRace(S); } catch (err) { lastRace = null; diag.record('records', err); }
-          clearTimeout(overTimer); overTimer = setTimeout(hud.showEnd, e.kind === 'wrecked' ? 500 : 1100); break;
+          clearTimeout(overTimer); overTimer = setTimeout(() => hud.showEnd(lastRace), e.kind === 'wrecked' ? 500 : 1100); break;
       }
     }
     S.events.length = 0;

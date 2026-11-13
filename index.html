@@ -158,7 +158,31 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
 .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .stat { padding: 10px 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
 .stat b { font-family: var(--display); font-weight: 400; font-size: clamp(22px, 6vw, 32px); font-variant-numeric: tabular-nums; line-height: 1; }
+.bests { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); }
+.bests[hidden], .brow[hidden], .bhead[hidden] { display: none; }
+.brow { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 4px 10px; align-items: end; }
+.brow .lab, .bhead .lab { font-size: 13px; letter-spacing: .16em; text-transform: uppercase; opacity: .7; }
+.bhead { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.brow b { font-family: var(--display); font-weight: 400; font-size: clamp(18px, 4.8vw, 24px); font-variant-numeric: tabular-nums; line-height: 1; }
+.brow .tag { grid-column: 2 / 4; justify-self: start; font-size: 13px; font-weight: 700; letter-spacing: .14em; padding: 2px 8px; border-radius: 3px; background: rgba(255,255,255,.1); }
+.brow .tag:empty { display: none; }
+.brow .tag.new { background: var(--gold); color: var(--ink); }
+.brow .tag.slower { color: var(--hot); }
+.bnote { margin: 0; font-size: 13px; letter-spacing: .14em; opacity: .65; text-transform: uppercase; }
 @media (max-width: 420px) { .keys { grid-template-columns: minmax(0, 1fr); } .hud-top { grid-template-columns: minmax(70px, auto) minmax(0, 1fr) 88px; gap: 8px; } #mini { width: 88px; height: 88px; } .hud-btns { top: 102px; } #toasts { top: 140px; } }
+/* A short landscape screen (a phone on its side): the results card goes into two columns so that the button never ends up below the fold. */
+@media (orientation: landscape) and (max-height: 520px) {
+  #end .card { max-width: 860px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; row-gap: 10px; align-content: center; }
+  #end .flag { grid-column: 1 / -1; height: 16px; }
+  #end .kicker, #end h1, #end .stats { grid-column: 1; }
+  #end .bests { grid-column: 2; grid-row: 2 / span 3; align-self: start; padding: 8px 10px; gap: 6px; }
+  #end #again { grid-column: 2; grid-row: 5; align-self: end; justify-self: stretch; }
+  #end h1 { font-size: clamp(34px, 8vw, 60px) !important; }
+  #end .stat { padding: 8px 10px; } #end .stat b { font-size: clamp(20px, 3.4vw, 26px); }
+  .brow b { font-size: clamp(16px, 2.8vw, 22px); }
+  .brow .lab, .bhead .lab, .bnote { font-size: 11px; letter-spacing: .12em; }
+  .brow .tag { font-size: 11px; padding: 1px 6px; }
+}
 @media (prefers-reduced-motion: reduce) { .toast, #cd.go { animation-duration: .01s; } }
 </style>
 
@@ -244,6 +268,12 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <div class="stat"><span class="lab">Place</span><b id="stPlace">1ST</b></div>
         <div class="stat"><span class="lab">Wrecks</span><b id="stKills">0</b></div>
         <div class="stat"><span class="lab" id="stTimeLab">Race time</span><b id="stTime">0:00.0</b></div>
+      </div>
+      <div class="bests" id="bests" hidden>
+        <div class="bhead"><span class="lab">Records</span><span class="lab">This race</span><span class="lab">Your best</span></div>
+        <div class="brow"><span class="lab">Race time</span><b id="bsTimeRace">&mdash;</b><b id="bsTimeBest">&mdash;</b><span class="tag" id="bsTimeTag"></span></div>
+        <div class="brow"><span class="lab">Best lap</span><b id="bsLapRace">&mdash;</b><b id="bsLapBest">&mdash;</b><span class="tag" id="bsLapTag"></span></div>
+        <p class="bnote" id="bsNote"></p>
       </div>
       <button class="cta" id="again" type="button">Race again</button>
     </div>
