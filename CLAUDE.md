@@ -1,6 +1,6 @@
 # Micro Mayhem: project documentation
 
-A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell is still being split: the renderer is done (M0.6); the input, UI and game loop are M0.7 (see `docs/ROADMAP.md`).
+A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell split is done (M0.5 to M0.7): `src/main.js` only builds the pieces and wires them together; the version label is M0.8 (see `docs/ROADMAP.md`).
 
 This file is the project context for Claude Code. The game is deployed to GitHub Pages by `.github/workflows/pages.yml`: every push runs the tests, and a push to `main` that passes them is deployed and then verified against the live site (see section 9). **Planned features and the architecture they need are in `docs/ROADMAP.md`; read it before starting character creation, car selection, saved scores, aura/shop or new tracks.**
 
@@ -36,7 +36,16 @@ The game is an ES module graph. `index.html` loads `src/main.js`, which imports 
 | Module | What it is | Notes |
 |---|---|---|
 | `src/sim/sim.js` | The simulation (`import { Sim } from './sim/sim.js'`, also the default export) | **Pure**: no DOM, canvas, audio, storage, timers, network or `console`. Enforced by lint (`eslint.config.js` gives `src/sim/` no host globals, bans importing the shell, bans `Date`/`globalThis`). Moved out of the page byte for byte in M0.4 |
-| `src/main.js` | The game shell: wiring, input, HUD and overlays, steering lab, camera follow, main loop | Moved out of the page byte for byte in M0.5a; the renderer left it in M0.6; input, UI and the loop are split out in M0.7 |
+| `src/main.js` | The shell: builds every piece below and wires them together (about 80 lines, no logic). Also the `?level=`, `?lab` and `?debug` handling and the `window.__mm` hook | Moved out of the page byte for byte in M0.5a, then split into the modules below in M0.5 to M0.7 |
+| `src/input.js` | `createInput({ S, tune, initAudio })` returns `{ readInput, stickRelease, connect }`: keyboard, BRAKE and FIRE buttons and the floating joystick, written to `S.input` once a frame | `connect(actions)` registers the key handlers, which need actions from other modules (start race, mute, leave lab); this is how the modules avoid importing each other in a circle. `win` and `doc` can be passed in, so it is unit-tested with a fake DOM |
+| `src/game.js` | `createGame({ S, doc, reset, audio, hud, lab, input, rig, fx })` returns `{ startRace, exitLab, handleEvents }` | Race flow, and the simulation's events turned into sound, toasts and the damage flash. **To add a sound, toast or effect, add a case to `handleEvents()`** |
+| `src/camera.js` | `createCameraRig({ S, cam, ranking, angDiff })` returns `{ reset, follow }` | Which car the camera follows and how it eases after it |
+| `src/loop.js` | `createLoop({...}).start()`: `frame()` and `tick()` | Re-arms `requestAnimationFrame` first and runs the tick in try/catch; adaptive resolution; sub-stepped sim; attract-mode restart |
+| `src/ui/hud.js` | `createHud({...})` returns `{ overlayOpen, visible, toast, showRace, showMenu, showEnd, update }` | HUD, toasts and the three screens. Writes to the DOM only when a value changed |
+| `src/ui/settings.js` | `createSettingsUi({...})` returns `{ toggleMute, showAssist, setLevel, hooks }` | The sound, assist and level buttons. `hooks` lets the lab panel follow level and assist changes without an import cycle |
+| `src/ui/lab.js` | `createLab({...})` returns `{ setLab, track, resetStats, updateHud, connect }`; `createLapTimer({ S, N })` | The Steering Lab panel and readout. The lap timer is pure and unit-tested |
+| `src/ui/debug.js` | `createDebugOverlay({...})` returns `update(now, ft)` | The `?debug` overlay (fps, resolution, sim speed, version, errors) |
+| `src/ui/format.js` | `ord`, `fmtTime` | Pure |
 | `src/render/view.js` | `createView({ canvas, coarse, startCam })` returns `{ view, cam, resize, canStepDown, stepDown }`; `K`, `TILT`, `RES_STEPS` | The screen metrics (`view.W/H/DPR/Z/baseY`) and the camera (`cam.x/y/a/c/s/shx/shy`) as two explicit objects, not loose variables |
 | `src/render/draw.js` | `createDraw({ ctx, view, cam })` returns `{ proj, poly, prism }`; `rgb` and the colour constants | `proj` is the world-to-screen projection (section 4) |
 | `src/render/world.js` | `buildProps({ T, N, HALF_W })`: the decorative toy blocks, planks and discs, placed by a seeded generator | Same props on every device; none collide with anything |
@@ -72,7 +81,7 @@ Page structure above the module script:
 
 ### Sim to shell communication
 
-The sim pushes plain objects onto `S.events`. The shell drains and clears the array every frame in `handleEvents()`. Event types:
+The sim pushes plain objects onto `S.events`. The shell drains and clears the array every frame in `handleEvents()` (`src/game.js`). Event types:
 
 `tick`, `go`, `shot {w}`, `boom`, `hit`, `crash`, `hurt {amt}`, `pickup {car,label}`, `empty`, `kill {killer,victim}`, `finish {car}`, `over {kind}`.
 
@@ -85,14 +94,14 @@ To add sounds, toasts or screen effects, add a new event type in the sim and a c
 | `proj(wx, wy, h)` (`src/render/draw.js`) | World to screen. Returns `[sx, sy, perspectiveScale, forwardDistance]` |
 | `prism(pts, h0, h1, topCol, sideCol)` (`src/render/draw.js`) | Extruded polygon with back-face culling and per-face shading. Used for walls, props, cars and crates |
 | `render()` (`src/render/scene.js`) | Draws the felt, track, then every object sorted by forward depth (painter's algorithm), then particles, fog gradient and damage vignette |
-| `updateHud()` | Writes to the DOM only when a value changed |
-| `startRace()` / `showEnd()` | Overlay and state transitions |
-| `frame()` | Main loop: input, sim step, events, attract-mode restart, camera follow, render, HUD, engine sound |
+| `update()` (`src/ui/hud.js`) | Writes to the DOM only when a value changed |
+| `startRace()` / `exitLab()` (`src/game.js`), `showRace()` / `showMenu()` / `showEnd()` (`src/ui/hud.js`) | Overlay and state transitions |
+| `frame()` (`src/loop.js`) | Main loop: input, sim step, events, attract-mode restart, camera follow, render, HUD, engine sound |
 
 ## 4. Coordinate system and camera
 
 - World units are about pixels at zoom 1. A car is about 30 units long, the track is 176 wide (`HALF_W = 88`).
-- Camera: `cam.x/y/a` follows the target car with a velocity lookahead of 0.075 s and smoothed heading (`kp`, `ka` in `frame()`).
+- Camera: `cam.x/y/a` follows the target car with a velocity lookahead of 0.075 s and smoothed heading (`kp`, `ka` in `follow()`, `src/camera.js`).
 - Projection: `fwd` is distance ahead of the camera and `lat` is sideways. `p = 1 / (1 + fwd * K)`. Screen x is `W/2 + lat*p*Z`, screen y is `baseY - (fwd*TILT + h)*p*Z`.
 - `K = 0.0011` sets perspective strength, `TILT = 0.66` sets how far the ground is squashed (lower is flatter), `baseY = H * 0.77` puts the car low on screen, and `Z = clamp(min(W/400, H/500), 0.7, 2.1)` is the responsive zoom.
 - Height `h` lifts a point straight up on screen, which is what makes cars and walls look 3D.
@@ -161,13 +170,13 @@ Dev tooling only; nothing here ships to players. One-time setup: `npm install` (
 |---|---|
 | `npm test` | Everything below, about 2 minutes |
 | `npm run lint` | ESLint: undefined names, dead code, and the simulation's purity rules (CI runs it before the tests) |
-| `npm run test:unit` | Unit tests of the small modules (profile, levels, audio, diagnostics, version, and the renderer: view, projection and prisms, props, minimap, scene), about 2 s |
+| `npm run test:unit` | Unit tests of the small modules (profile, levels, audio, diagnostics, version, the renderer: view, projection and prisms, props, minimap, scene; and input with a fake DOM, the lap timer, text formatting, and that the modules have no import cycles), about 2 s |
 | `npm run test:sim` | Headless simulation tests, about 25 s |
 | `npm run test:browser` | Real-browser tests: menus, race flow, touch controls, the lab, saved profile, a 9,000-frame soak |
 | `npm run study` | The driver study (keyboard-style and thumb-style drivers, with and without assist) |
 | `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen (real time; noisy) |
 | `npm run perf:cpu` | CPU cost per frame in virtual time (about 1% noise); compare before and after a refactor in alternating runs, as `tools/perf-compare.sh` does for the real-time measure |
-| `tools/golden-compare.sh <commit>` | **Did a refactor change any pixel?** Renders 10 deterministic scenarios (28 frames: attract mode on three screen shapes, countdown and start, every entity and effect, wrecks, hit flash, shake, reduced motion, the lab) from that commit and from the working tree, and compares the exact pixels of the canvas and minimap. About 1.5 minutes. `npm run golden` runs the capture and compare steps by hand |
+| `tools/golden-compare.sh <commit>` | **Did a refactor change any pixel?** Renders 19 deterministic scenarios (81 frames: attract mode on three screen shapes, countdown and start, every entity and effect, wrecks, hit flash, shake, reduced motion, the lab, the settings buttons, keyboard and touch controls, the lab panel, all three results screens) from that commit and from the working tree, and compares the exact pixels of the canvas and minimap **and the state of the HUD, overlays, buttons and input values**. About 2 minutes. `npm run golden` runs the capture and compare steps by hand |
 | `npm run serve` | Local web server on port 8000 |
 
 **Randomness in tests.** The sim is not seeded until M1, so races vary. Never assert a threshold you have not measured: run the scenario 100+ times, look at the distribution, and size the sample so a false failure is well under 0.1% per run. Two tests written without that discipline failed on CI within an hour (an autopilot race can end in 14.5 s; a random-input race may never finish). Assert invariants (finite, within limits) rather than outcomes wherever you can.
@@ -212,7 +221,7 @@ Roughly in order of payoff:
 
 ## 9. Conventions used
 
-- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell IIFE in `src/main.js` is split further in M0.7.
+- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell is a set of small `createX({...})` modules wired in `src/main.js`; **modules never import each other in a circle** (a unit test checks it). Where one needs an action from another, `main.js` passes it in (`input.connect(actions)`, `lab.connect(actions)`, `settingsUi.hooks`).
 - **Lint is part of the build.** `npm run lint` must be clean; CI runs it before the tests. Do not weaken the `src/sim/` rules to make a change compile: pass the data in instead.
 - Design tokens are CSS variables in `:root`. The look is a dark felt table with chunky toy props, a pop-art red/gold/cyan palette, Bungee for headings and numbers, and Barlow Condensed for UI text.
 - DOM is touched only through cached element references and only when a value changes.
