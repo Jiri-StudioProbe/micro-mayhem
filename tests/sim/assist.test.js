@@ -7,14 +7,14 @@ const drivers = makeDrivers(Sim);
 const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
 const RUNS = Number(process.env.ASSIST_RUNS || 40);
 
-// The simulation is not seeded until M1, so these are statistical. The sample size and thresholds come from measuring 150 races per
+// The races are seeded (M1), so each run is exactly repeatable, but the claims are still statistical: the sample size and thresholds come from measuring 150 races per
 // driver and bootstrapping: at 40 races each, the chance of a false failure is about 0.03% per run (at 10 races it was 2% to 9%).
 // Measured means: thumb 4.5th with 8.2 wall hits; thumb + Rookie assist 1.7th with 0.14 hits; keyboard 2.5th.
 let thumb, rookie, keyboard;
 before(() => {
-  thumb = Array.from({ length: RUNS }, () => runRace(Sim, drivers, 'thumb', { assist: false }));
-  rookie = Array.from({ length: RUNS }, () => runRace(Sim, drivers, 'thumb', { assist: true, lane: 1.5, speed: 1.5 }));
-  keyboard = Array.from({ length: RUNS }, () => runRace(Sim, drivers, 'keyboard'));
+  thumb = Array.from({ length: RUNS }, (_, i) => runRace(Sim, drivers, 'thumb', { seed: 1000 + i, assist: false }));
+  rookie = Array.from({ length: RUNS }, (_, i) => runRace(Sim, drivers, 'thumb', { seed: 2000 + i, assist: true, lane: 1.5, speed: 1.5 }));
+  keyboard = Array.from({ length: RUNS }, (_, i) => runRace(Sim, drivers, 'keyboard', { seed: 3000 + i }));
 });
 
 // This is the measurement behind the Rookie level: a thumb-style driver loses badly without help and wins with it.

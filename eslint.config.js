@@ -31,13 +31,14 @@ export default [
   },
   {
     // The simulation is pure: no window, document, storage, timers, network or console, because it gets no host globals at all and
-    // `no-undef` rejects them. Anything it needs is passed in. (Math.random is still allowed until the sim is seeded in M1.)
+    // `no-undef` rejects them. Anything it needs is passed in. Randomness comes only from the seeded S.rng and S.fxRng (src/sim/rng.js).
     files: ['src/sim/**/*.js'],
     rules: {
       'no-restricted-imports': ['error', { patterns: [{ group: ['**/render/*', '**/ui/*', '**/audio*', '**/input*', '**/profile*', '**/net/*'], message: 'The simulation must not depend on the shell.' }] }],
       'no-restricted-syntax': ['error',
         { selector: "MemberExpression[object.name='globalThis']", message: 'The simulation must not reach for globals.' },
-        { selector: "Identifier[name='Date']", message: 'Use the dt the shell passes in; wall-clock time makes races unrepeatable.' }]
+        { selector: "Identifier[name='Date']", message: 'Use the dt the shell passes in; wall-clock time makes races unrepeatable.' },
+        { selector: "MemberExpression[object.name='Math'][property.name='random']", message: 'Use S.rng() (gameplay) or S.fxRng() (decoration): Math.random makes races unrepeatable.' }]
     }
   }
 ];

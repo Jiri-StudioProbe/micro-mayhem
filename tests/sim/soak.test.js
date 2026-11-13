@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Sim } from '../helpers/sim.js';
+import { mulberry32 } from '../../src/sim/rng.js';
 
 const finite = S => S.cars.every(c => [c.x, c.y, c.a, c.vx, c.vy, c.hp].every(Number.isFinite));
 
 test('autopilot races end, with no NaN, within a plausible time', () => {
   for (let r = 0; r < 12; r++) {
-    const S = Sim.create(); Sim.reset(S, 'race'); S.player.auto = true;
+    const S = Sim.create(100 + r); Sim.reset(S, 'race'); S.player.auto = true;
     let t = 0;
     for (; t < 240 && S.state !== 'over'; t += 1 / 60) { Sim.step(S, 1 / 60); S.events.length = 0; }
     assert.ok(finite(S), `race ${r}: non-finite car state`);
@@ -22,9 +23,9 @@ test('races with a randomly driven player stay finite', () => {
   // Only the invariant is asserted. A randomly steered car may never finish in 2 minutes, so ending is not required here;
   // the browser tests force each end-of-race path (finish, last car standing, wrecked) deliberately.
   for (let r = 0; r < 16; r++) {
-    const S = Sim.create(); Sim.reset(S, 'race'); S.player.auto = false;
+    const S = Sim.create(200 + r), rnd = mulberry32(300 + r); Sim.reset(S, 'race'); S.player.auto = false;
     for (let t = 0; t < 120 && S.state !== 'over'; t += 1 / 60) {
-      if (Math.floor(t * 60) % 20 === 0) { S.input.steer = Math.random() * 2 - 1; S.input.thr = Math.random() < 0.8 ? 1 : 0; S.input.brk = Math.random() < 0.1 ? 1 : 0; S.input.fire = Math.random() < 0.5 ? 1 : 0; }
+      if (Math.floor(t * 60) % 20 === 0) { S.input.steer = rnd() * 2 - 1; S.input.thr = rnd() < 0.8 ? 1 : 0; S.input.brk = rnd() < 0.1 ? 1 : 0; S.input.fire = rnd() < 0.5 ? 1 : 0; }
       Sim.step(S, 1 / 60); S.events.length = 0;
     }
     assert.ok(finite(S), `race ${r}: non-finite car state`);

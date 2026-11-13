@@ -36,6 +36,7 @@ The game is an ES module graph. `index.html` loads `src/main.js`, which imports 
 | Module | What it is | Notes |
 |---|---|---|
 | `src/sim/sim.js` | The simulation (`import { Sim } from './sim/sim.js'`, also the default export) | **Pure**: no DOM, canvas, audio, storage, timers, network or `console`. Enforced by lint (`eslint.config.js` gives `src/sim/` no host globals, bans importing the shell, bans `Date`/`globalThis`). Moved out of the page byte for byte in M0.4 |
+| `src/sim/rng.js` | `mulberry32(seed)` returns a function giving the next number in [0, 1); `deriveSeed(seed, salt)` makes independent streams from one seed | The sim's only source of randomness (M1.1). Pinned by tests: **changing the algorithm or its constants breaks every saved race** |
 | `src/main.js` | The shell: builds every piece below and wires them together (about 80 lines, no logic). Also the `?level=`, `?lab` and `?debug` handling and the `window.__mm` hook | Moved out of the page byte for byte in M0.5a, then split into the modules below in M0.5 to M0.7 |
 | `src/input.js` | `createInput({ S, tune, initAudio })` returns `{ readInput, stickRelease, connect }`: keyboard, BRAKE and FIRE buttons and the floating joystick, written to `S.input` once a frame | `connect(actions)` registers the key handlers, which need actions from other modules (start race, mute, leave lab); this is how the modules avoid importing each other in a circle. `win` and `doc` can be passed in, so it is unit-tested with a fake DOM |
 | `src/game.js` | `createGame({ S, doc, reset, audio, hud, lab, input, rig, fx })` returns `{ startRace, exitLab, handleEvents }` | Race flow, and the simulation's events turned into sound, toasts and the damage flash. **To add a sound, toast or effect, add a case to `handleEvents()`** |
@@ -69,7 +70,7 @@ Page structure above the module script:
 |---|---|
 | `buildTrack()` | Catmull-Rom spline through `CTRL` points, resampled to equal spacing (`SP = 22`). Produces arrays `x, y, tx, ty, nx, ny, ang, curv, vsafe`. `vsafe[i]` is the AI's safe corner speed, found by looking ahead and braking back |
 | `nearest(px, py, hint)` | Nearest track sample index. Searches near `hint` first, falls back to a full scan |
-| `create()` / `reset(S, mode)` | Build state. Modes: `'race'` (countdown) and `'attract'` (AI only) |
+| `create(seed)` / `reset(S, mode, seed)` | Build state. Modes: `'race'` (countdown), `'attract'` (AI only) and `'lab'`. `reset` with a `seed` makes exactly that race (`S.seed` records it); without one it draws the next seed from the master stream that `create(seed)` made, so a whole session is reproducible. The shell calls `create(newSeed())` once |
 | `step(S, dt)` | Advance one frame. Order: countdown, per-car control and drive, walls and lap progress, car-vs-car, crates, bullets, rockets, mines, particles, end-of-race checks |
 | `drive(c, dt)` | Arcade car model: forward and lateral velocity split, lateral grip damping, speed-scaled steering |
 | `walls(S, c, dt, track)` | Keeps cars inside the track, applies wall damage and counts lap progress via `prog` (index delta, wrap-safe) |
@@ -152,8 +153,8 @@ Because `Sim` is pure, you can run headless races in plain Node (`package.json` 
 
 ```js
 import Sim from './src/sim/sim.js';
-const S = Sim.create();
-Sim.reset(S, 'race');
+const S = Sim.create(1);        // the seed of the session; races are repeatable
+Sim.reset(S, 'race', 42);       // or give a race its own seed
 S.player.auto = true;            // let the AI drive the player car too
 for (let t = 0; t < 200 && S.state !== 'over'; t += 1 / 60) {
   Sim.step(S, 1 / 60);
@@ -179,7 +180,7 @@ Dev tooling only; nothing here ships to players. One-time setup: `npm install` (
 | `tools/golden-compare.sh <commit>` | **Did a refactor change any pixel?** Renders 19 deterministic scenarios (81 frames: attract mode on three screen shapes, countdown and start, every entity and effect, wrecks, hit flash, shake, reduced motion, the lab, the settings buttons, keyboard and touch controls, the lab panel, all three results screens) from that commit and from the working tree, and compares the exact pixels of the canvas and minimap **and the state of the HUD, overlays, buttons and input values**. About 2 minutes. `npm run golden` runs the capture and compare steps by hand |
 | `npm run serve` | Local web server on port 8000 |
 
-**Randomness in tests.** The sim is not seeded until M1, so races vary. Never assert a threshold you have not measured: run the scenario 100+ times, look at the distribution, and size the sample so a false failure is well under 0.1% per run. Two tests written without that discipline failed on CI within an hour (an autopilot race can end in 14.5 s; a random-input race may never finish). Assert invariants (finite, within limits) rather than outcomes wherever you can.
+**Randomness in tests.** Races are seeded (M1.1): the same seed, steps and inputs always give the same race, so a failing test can be replayed exactly. **A loop over races must vary the seed** (`runRace` insists on one), or it runs the same race again and again. Seeds make a test *repeatable*, not *right*: never assert a threshold you have not measured on many seeds (run the scenario 100+ times, look at the distribution, size the sample so a false failure is well under 0.1% per run; two tests written without that discipline failed on CI within an hour). Assert invariants (finite, within limits) rather than outcomes wherever you can. `node tools/driver-study.js 400 <firstSeed>` gives an independent sample of 400 races per row.
 
 `docs/M0-baseline.md` records the numbers every refactor must reproduce. Tests open the game with `?debug`, which exposes `window.__mm` (`S`, `input`, `Sim`, `tune`, `level`); keep that hook working. Any change to physics, steering, defaults or the profile should be followed by `npm test`; changing a baked-in default also means updating `tests/browser/lab.test.js` and bumping `PRESET_VERSION`.
 
@@ -222,6 +223,7 @@ Roughly in order of payoff:
 ## 9. Conventions used
 
 - Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell is a set of small `createX({...})` modules wired in `src/main.js`; **modules never import each other in a circle** (a unit test checks it). Where one needs an action from another, `main.js` passes it in (`input.connect(actions)`, `lab.connect(actions)`, `settingsUi.hooks`).
+- **The simulation is deterministic.** It has two random streams per race, both from the race's seed: `S.rng` for everything that decides the race (AI characters, aim spread, crate contents) and `S.fxRng` for decoration only (sparks, smoke, flames, debris), so dropping or adding particles can never change a race. Use `rand(S, a, b)` / `S.rng()` for gameplay and `frand(S, a, b)` / `S.fxRng()` for decoration; lint bans `Math.random` and `Date` in `src/sim/`. Anything new that is random goes through one of the two streams, and a new gameplay draw changes every race (see `simVersion` in `docs/ROADMAP.md`). `tests/sim/determinism.test.js` checks all of this.
 - **Lint is part of the build.** `npm run lint` must be clean; CI runs it before the tests. Do not weaken the `src/sim/` rules to make a change compile: pass the data in instead.
 - Design tokens are CSS variables in `:root`. The look is a dark felt table with chunky toy props, a pop-art red/gold/cyan palette, Bungee for headings and numbers, and Barlow Condensed for UI text.
 - DOM is touched only through cached element references and only when a value changes.

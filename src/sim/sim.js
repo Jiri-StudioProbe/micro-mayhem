@@ -1,12 +1,17 @@
 // The simulation: pure game rules. No DOM, no canvas, no audio, no storage, no network (enforced by lint, see eslint.config.js).
 // State goes in (S.input), plain events come out (S.events). Everything the game needs from the outside is passed in.
-// Moved verbatim out of index.html in M0.4; only the `export` below is new.
+// Moved verbatim out of index.html in M0.4; only the `export` below is new. Seeded in M1: see S.seed, S.rng and S.fxRng.
+import { mulberry32, deriveSeed } from './rng.js';
 export const Sim = (() => {
 'use strict';
 const TAU = Math.PI * 2, PI = Math.PI;
 const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
 const angDiff = (a, b) => { let d = (b - a) % TAU; if (d > PI) d -= TAU; else if (d < -PI) d += TAU; return d; };
-const rand = (a, b) => a + Math.random() * (b - a);
+// Two random streams per race, both from the race's seed. S.rng decides everything that matters to the race (AI character, aim spread, crate
+// contents); S.fxRng only decorates it (sparks, smoke, flames), so drawing fewer or more particles can never change who wins.
+const rand = (S, a, b) => a + S.rng() * (b - a);
+const frand = (S, a, b) => a + S.fxRng() * (b - a);
+const newSeed = master => (master() * 4294967296) >>> 0;
 
 const LAPS = 3, HALF_W = 88, SP = 22, LATACC = 640;
 const CTRL = [[150,250],[650,200],[1150,220],[1650,300],[2000,520],[2050,900],[1800,1150],[1450,1050],[1250,780],[1000,700],[800,950],[1000,1250],[1300,1500],[1250,1800],[800,1900],[350,1750],[100,1400],[350,1100],[150,800],[-100,500]];
@@ -88,14 +93,15 @@ function newCar(S, k, gridK) {
     idx: i0, lastIdx: i0, prog: i0 - N, finished: false, place: 0, finishT: 0, kills: 0,
     weapon: null, ammo: 0, cool: 0, steer: 0, throttle: 0, brake: 0, fire: 0,
     maxSpeed: k === 0 ? 372 : 366, accel: 520, auto: k !== 0,
-    ai: { skill: k === 0 ? 0.92 : 0.84 + Math.random() * 0.12, lane: 0, laneT: Math.random() * 2, stuck: 0, rev: 0, react: 0, aggr: 0.2 + Math.random() * 0.3 },
+    ai: { skill: k === 0 ? 0.92 : 0.84 + S.rng() * 0.12, lane: 0, laneT: S.rng() * 2, stuck: 0, rev: 0, react: 0, aggr: 0.2 + S.rng() * 0.3 },
     rot: 0
   };
   return c;
 }
 
-function create() {
-  const S = { cars: [], bullets: [], rockets: [], mines: [], parts: [], rings: [], crates: [], events: [],
+// `seed` seeds a master stream that supplies the seed of every later reset() that is not given one, so a whole session is reproducible.
+function create(seed = 1) {
+  const S = { master: mulberry32(seed), seed: 0, rng: null, fxRng: null, cars: [], bullets: [], rockets: [], mines: [], parts: [], rings: [], crates: [], events: [],
     t: 0, raceT: 0, state: 'race', cd: 0, input: { steer: 0, thr: 0, brk: 0, fire: 0 },
     shake: 0, finishOrder: [], result: null, deadT: 0, player: null, lab: false, touches: 0,
     tune: { assistLane: 1, assistSpeed: 1.1 } };
@@ -103,7 +109,10 @@ function create() {
   return S;
 }
 
-function reset(S, mode) {
+// `seed` makes the race: the same seed (with the same inputs and steps) always plays out the same. Without one, the next seed comes from the master stream.
+function reset(S, mode, seed) {
+  S.seed = seed === undefined ? newSeed(S.master) : seed >>> 0;
+  S.rng = mulberry32(deriveSeed(S.seed, 1)); S.fxRng = mulberry32(deriveSeed(S.seed, 2));
   S.cars.length = S.bullets.length = S.rockets.length = S.mines.length = S.parts.length = S.rings.length = S.crates.length = 0;
   S.finishOrder.length = 0; S.result = null; S.deadT = 0; S.raceT = 0; S.shake = 0; S.touches = 0;
   S.lab = mode === 'lab';   // steering lab: the player alone, no crates, no damage, no end
@@ -132,22 +141,22 @@ function part(S, kind, x, y, h, vx, vy, vh, life, size, r, g, b, grav) {
   S.parts.push({ kind, x, y, h, vx, vy, vh, life, max: life, size, r, g, b, grav: grav || 0 });
 }
 function sparks(S, x, y, h, n, spd) {
-  for (let i = 0; i < n; i++) { const a = rand(0, TAU), s = rand(0.3, 1) * spd; part(S, 0, x, y, h, Math.cos(a) * s, Math.sin(a) * s, rand(20, 120), rand(0.15, 0.4), 2, 255, rand(180, 240), 90, 300); }
+  for (let i = 0; i < n; i++) { const a = frand(S, 0, TAU), s = frand(S, 0.3, 1) * spd; part(S, 0, x, y, h, Math.cos(a) * s, Math.sin(a) * s, frand(S, 20, 120), frand(S, 0.15, 0.4), 2, 255, frand(S, 180, 240), 90, 300); }
 }
 function smoke(S, x, y, h, dark) {
-  const g = dark ? 40 : 120; part(S, 1, x + rand(-3, 3), y + rand(-3, 3), h, rand(-12, 12), rand(-12, 12), rand(20, 50), rand(0.6, 1.1), rand(5, 8), g, g, g + 6, 0);
+  const g = dark ? 40 : 120; part(S, 1, x + frand(S, -3, 3), y + frand(S, -3, 3), h, frand(S, -12, 12), frand(S, -12, 12), frand(S, 20, 50), frand(S, 0.6, 1.1), frand(S, 5, 8), g, g, g + 6, 0);
 }
 function flame(S, x, y, h) {
-  part(S, 2, x + rand(-4, 4), y + rand(-4, 4), h, rand(-15, 15), rand(-15, 15), rand(40, 90), rand(0.25, 0.5), rand(5, 9), 255, rand(110, 190), 40, 0);
+  part(S, 2, x + frand(S, -4, 4), y + frand(S, -4, 4), h, frand(S, -15, 15), frand(S, -15, 15), frand(S, 40, 90), frand(S, 0.25, 0.5), frand(S, 5, 9), 255, frand(S, 110, 190), 40, 0);
 }
 function bigBoom(S, x, y, scale) {
-  for (let i = 0; i < 26 * scale; i++) { const a = rand(0, TAU), s = rand(30, 230) * scale; part(S, 2, x, y, 6, Math.cos(a) * s, Math.sin(a) * s, rand(20, 140), rand(0.3, 0.7), rand(7, 14), 255, rand(100, 210), 40, 0); }
-  for (let i = 0; i < 14 * scale; i++) { const a = rand(0, TAU), s = rand(10, 90) * scale; part(S, 1, x, y, 8, Math.cos(a) * s, Math.sin(a) * s, rand(30, 80), rand(0.8, 1.5), rand(9, 15), 50, 50, 56, 0); }
+  for (let i = 0; i < 26 * scale; i++) { const a = frand(S, 0, TAU), s = frand(S, 30, 230) * scale; part(S, 2, x, y, 6, Math.cos(a) * s, Math.sin(a) * s, frand(S, 20, 140), frand(S, 0.3, 0.7), frand(S, 7, 14), 255, frand(S, 100, 210), 40, 0); }
+  for (let i = 0; i < 14 * scale; i++) { const a = frand(S, 0, TAU), s = frand(S, 10, 90) * scale; part(S, 1, x, y, 8, Math.cos(a) * s, Math.sin(a) * s, frand(S, 30, 80), frand(S, 0.8, 1.5), frand(S, 9, 15), 50, 50, 56, 0); }
   sparks(S, x, y, 8, 18 * scale, 260);
   S.rings.push({ x, y, r: 6, max: 70 * scale, life: 0.35, t: 0.35 });
 }
 function debris(S, c) {
-  for (let i = 0; i < 12; i++) { const a = rand(0, TAU), s = rand(40, 200); part(S, 3, c.x, c.y, 8, Math.cos(a) * s, Math.sin(a) * s, rand(80, 220), rand(0.8, 1.4), rand(2.5, 4.5), c.color[0] * 0.5, c.color[1] * 0.5, c.color[2] * 0.5, 520); }
+  for (let i = 0; i < 12; i++) { const a = frand(S, 0, TAU), s = frand(S, 40, 200); part(S, 3, c.x, c.y, 8, Math.cos(a) * s, Math.sin(a) * s, frand(S, 80, 220), frand(S, 0.8, 1.4), frand(S, 2.5, 4.5), c.color[0] * 0.5, c.color[1] * 0.5, c.color[2] * 0.5, 520); }
 }
 
 /* ---------- damage ---------- */
@@ -187,7 +196,7 @@ function tryFire(S, c) {
   const f = Math.cos(c.a), s = Math.sin(c.a);
   if (c.weapon === 'mg') {
     c.cool = 0.075; c.ammo--;
-    const sprd = c.isPlayer && !c.auto ? 0.03 : 0.07, a = c.a + rand(-sprd, sprd);
+    const sprd = c.isPlayer && !c.auto ? 0.03 : 0.07, a = c.a + rand(S, -sprd, sprd);
     S.bullets.push({ x: c.x + f * 18, y: c.y + s * 18, vx: Math.cos(a) * 760 + c.vx * 0.7, vy: Math.sin(a) * 760 + c.vy * 0.7, life: 0.62, owner: c, dmg: 2.2 });
     sparks(S, c.x + f * 19, c.y + s * 19, 7, 1, 80);
     S.events.push({ t: 'shot', w: 'mg', x: c.x, y: c.y });
@@ -209,7 +218,7 @@ function aiControl(S, c, dt) {
   const a = c.ai, f = Math.cos(c.a), s = Math.sin(c.a);
   const vf = c.vx * f + c.vy * s, spd = Math.hypot(c.vx, c.vy);
   a.laneT -= dt;
-  if (a.laneT <= 0) { a.laneT = rand(1.4, 3.6); a.lane = rand(-1, 1) * (HALF_W - 46); }
+  if (a.laneT <= 0) { a.laneT = rand(S, 1.4, 3.6); a.lane = rand(S, -1, 1) * (HALF_W - 46); }
   let lane = a.lane;
   if (!c.weapon || c.hp < 50) {
     for (const cr of S.crates) {
@@ -243,9 +252,9 @@ function aiControl(S, c, dt) {
     for (const o of S.cars) {
       if (o === c || !o.alive) continue;
       const dx = o.x - c.x, dy = o.y - c.y, fw = dx * f + dy * s, lt = -dx * s + dy * f;
-      if (c.weapon === 'mg' && fw > 20 && fw < 300 && Math.abs(lt) < fw * 0.1 + 8) { c.fire = Math.random() < a.aggr ? 1 : 0; a.react = 0.12; break; }
-      if (c.weapon === 'rocket' && fw > 60 && fw < 460 && Math.abs(lt) < fw * 0.2 + 12) { c.fire = Math.random() < a.aggr ? 1 : 0; a.react = rand(0.9, 2.2); break; }
-      if (c.weapon === 'mine' && fw < -20 && fw > -150 && Math.abs(lt) < 30) { c.fire = Math.random() < a.aggr ? 1 : 0; a.react = rand(1.0, 2.5); break; }
+      if (c.weapon === 'mg' && fw > 20 && fw < 300 && Math.abs(lt) < fw * 0.1 + 8) { c.fire = S.rng() < a.aggr ? 1 : 0; a.react = 0.12; break; }
+      if (c.weapon === 'rocket' && fw > 60 && fw < 460 && Math.abs(lt) < fw * 0.2 + 12) { c.fire = S.rng() < a.aggr ? 1 : 0; a.react = rand(S, 0.9, 2.2); break; }
+      if (c.weapon === 'mine' && fw < -20 && fw > -150 && Math.abs(lt) < 30) { c.fire = S.rng() < a.aggr ? 1 : 0; a.react = rand(S, 1.0, 2.5); break; }
     }
   }
 }
@@ -340,8 +349,8 @@ function step(S, dt) {
         c.wreck -= dt;
         c.vx *= Math.exp(-2.2 * dt); c.vy *= Math.exp(-2.2 * dt);
         c.x += c.vx * dt; c.y += c.vy * dt; walls(S, c, dt, false);
-        if (Math.random() < dt * 14) flame(S, c.x, c.y, 7);
-        if (Math.random() < dt * 12) smoke(S, c.x, c.y, 10, true);
+        if (S.fxRng() < dt * 14) flame(S, c.x, c.y, 7);
+        if (S.fxRng() < dt * 12) smoke(S, c.x, c.y, 10, true);
       }
       continue;
     }
@@ -353,8 +362,8 @@ function step(S, dt) {
     drive(c, dt);
     walls(S, c, dt, true);
     if (c.fire) tryFire(S, c);
-    if (c.hp < 45 && Math.random() < dt * 9) smoke(S, c.x, c.y, 9, c.hp < 25);
-    if (c.hp < 24 && Math.random() < dt * 14) flame(S, c.x, c.y, 8);
+    if (c.hp < 45 && S.fxRng() < dt * 9) smoke(S, c.x, c.y, 9, c.hp < 25);
+    if (c.hp < 24 && S.fxRng() < dt * 14) flame(S, c.x, c.y, 8);
     if (!c.finished && !S.lab && c.prog >= LAPS * N) {
       c.finished = true; S.finishOrder.push(c); c.place = S.finishOrder.length; c.finishT = S.raceT;
       S.events.push({ t: 'finish', car: c });
@@ -388,7 +397,7 @@ function step(S, dt) {
     for (const c of S.cars) {
       if (!c.alive || Math.hypot(c.x - cr.x, c.y - cr.y) > 22) continue;
       cr.cd = 11;
-      const r = Math.random();
+      const r = S.rng();
       let label;
       if (r < 0.2) { c.hp = Math.min(100, c.hp + 40); label = 'REPAIR +40'; }
       else {
@@ -429,7 +438,7 @@ function step(S, dt) {
     }
     if (tgt) r.a += clamp(angDiff(r.a, Math.atan2(tgt.y - r.y, tgt.x - r.x)), -1.9 * dt, 1.9 * dt);
     r.x += Math.cos(r.a) * r.sp * dt; r.y += Math.sin(r.a) * r.sp * dt; r.life -= dt;
-    if (Math.random() < dt * 60) smoke(S, r.x, r.y, 8, false);
+    if (S.fxRng() < dt * 60) smoke(S, r.x, r.y, 8, false);
     flame(S, r.x - Math.cos(r.a) * 8, r.y - Math.sin(r.a) * 8, 8);
     let boom = r.life <= 0;
     if (!boom) for (const c of S.cars) {

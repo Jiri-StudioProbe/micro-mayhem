@@ -9,6 +9,7 @@
 import { Sim } from './sim/sim.js';
 import { VERSION, readBuild, versionLabel } from './version.js';
 import { createDiag, watchWindow } from './diag.js';
+import { newSeed } from './util.js';
 import { createProfile, browserStorage } from './profile.js';
 import { createSettings } from './levels.js';
 import { createAudio } from './audio.js';
@@ -29,7 +30,7 @@ import { createLoop } from './loop.js';
 // First, so that anything that goes wrong while starting up is recorded too (shown under ?debug).
 const diag = createDiag(); watchWindow(diag, window);
 const { T, N, HALF_W, LAPS, WEAP, create, reset, step, ranking, angDiff } = Sim;
-const S = create();
+const S = create(newSeed());   // the seed decides every race of this session (S.seed holds the current race's)
 const $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
 const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);

@@ -1,10 +1,11 @@
 // Headless driver study: how fast can different "human models" lap the track, with and without the driving assist?
-// Usage: node tools/driver-study.js [runs]
+// Usage: node tools/driver-study.js [runs] [firstSeed]
+// The races are seeded, so the same arguments always print the same numbers; use another firstSeed for an independent sample.
 import { Sim } from '../tests/helpers/sim.js';
 import { makeDrivers, runRace } from '../tests/helpers/drivers.js';
 
 const drivers = makeDrivers(Sim);
-const RUNS = Number(process.argv[2]) || 12;
+const RUNS = Number(process.argv[2]) || 12, FIRST_SEED = Number(process.argv[3]) || 1;
 const avg = a => (a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : null);
 
 const rows = [
@@ -15,7 +16,7 @@ const rows = [
   ['keyboard + Rookie assist', 'keyboard', { assist: true, lane: 1.5, speed: 1.5 }]
 ];
 for (const [label, model, opts] of rows) {
-  const rs = Array.from({ length: RUNS }, () => runRace(Sim, drivers, model, opts));
+  const rs = Array.from({ length: RUNS }, (_, i) => runRace(Sim, drivers, model, { ...opts, seed: FIRST_SEED + i }));   // the same seeds for every row
   const fin = rs.filter(r => r.kind === 'finish');
   console.log(label.padEnd(46), 'wins', `${rs.filter(r => r.place === 1).length}/${RUNS}`, 'avg place', avg(rs.map(r => r.place)),
     'avg time', avg(fin.map(r => r.time)), 'wall hits', avg(rs.map(r => r.crashes)));
