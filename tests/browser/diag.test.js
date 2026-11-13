@@ -19,6 +19,18 @@ test('?debug shows the version, the build and an empty error count; a normal ses
   await close();
 });
 
+test('the start screen shows the release and the build; a stamped page shows its commit', async () => {
+  const { page, errors, close } = await newPage(browser, DESKTOP);
+  await page.goto(srv.url + '/index.html');
+  assert.equal(await page.textContent('#ver'), 'v1.4.0 \u00b7 dev build');
+  assert.ok(await page.isVisible('#ver'), 'the label is on screen, on the start card');
+  await page.route('**/index.html', async route => { const r = await route.fetch(); await route.fulfill({ response: r, body: (await r.text()).replace('<meta name="build" content="dev">', '<meta name="build" content="16e20f6">') }); });
+  await page.goto(srv.url + '/index.html');
+  assert.equal(await page.textContent('#ver'), 'v1.4.0 \u00b7 build 16e20f6');
+  assert.deepEqual(errors, []);
+  await close();
+});
+
 test('a failing frame is logged, shown under ?debug, and the game keeps running', async () => {
   const { page, errors, close } = await newPage(browser, DESKTOP);
   await page.goto(srv.url + '/index.html?debug');

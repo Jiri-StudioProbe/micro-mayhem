@@ -1,6 +1,6 @@
 # Micro Mayhem
 
-A top-down, pseudo-3D toy-car combat racer. Six cars, three laps, pickup weapons, damage and destruction. One HTML file, no build step, no assets.
+A top-down, pseudo-3D toy-car combat racer. Six cars, three laps, pickup weapons, damage and destruction. Plain HTML and ES modules, no build step, no image assets, no third-party requests.
 
 **Play:** https://jiri-studioprobe.github.io/micro-mayhem/
 
@@ -14,9 +14,9 @@ A top-down, pseudo-3D toy-car combat racer. Six cars, three laps, pickup weapons
 ## Run locally
 
 ```bash
-python3 -m http.server
+npm run serve
 ```
 
-Then open http://localhost:8000. Pushes to `main` deploy to GitHub Pages via `.github/workflows/pages.yml`.
+Then open http://localhost:8000 (opening `index.html` straight from disk does not work: browsers refuse ES modules over `file://`). The start screen shows the version and the commit that is deployed. Every push runs the tests (`npm test`); a push to `main` that passes them is deployed to GitHub Pages and checked against the live site, via `.github/workflows/pages.yml`.
 
 Project notes, architecture and tuning values are in [CLAUDE.md](CLAUDE.md).

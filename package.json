@@ -1,6 +1,6 @@
 {
   "name": "micro-mayhem",
-  "version": "1.4.0-dev",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
   "description": "Micro Mayhem: top-down toy-car combat racer. Dev tooling only; nothing here ships to players.",

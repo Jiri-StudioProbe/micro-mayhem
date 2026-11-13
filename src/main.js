@@ -7,7 +7,7 @@
 // Moved out of index.html in M0.5a and split into these modules in M0.5 to M0.7; the modules never import each other in a circle:
 // where one needs an action from another (start a race, leave the lab), the shell passes it in with connect().
 import { Sim } from './sim/sim.js';
-import { VERSION, readBuild } from './version.js';
+import { VERSION, readBuild, versionLabel } from './version.js';
 import { createDiag, watchWindow } from './diag.js';
 import { createProfile, browserStorage } from './profile.js';
 import { createSettings } from './levels.js';
@@ -34,6 +34,7 @@ const $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
 const COARSE = !!(window.matchMedia && matchMedia('(pointer: coarse)').matches);
 const DEBUG = /[?&]debug\b/.test(location.search);
+$('ver').textContent = versionLabel(VERSION, readBuild(document));   // the release and the deployed commit, on the start screen
 
 // Screen metrics and the camera (src/render/view.js). Canvas resolution steps down automatically on slow devices (see loop.js).
 const { view, cam, resize, canStepDown, stepDown } = createView({ canvas: cv, coarse: COARSE, startCam: { x: T.x[0], y: T.y[0], a: T.ang[0] } });

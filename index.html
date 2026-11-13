@@ -149,6 +149,7 @@ h1 span { color: var(--hot); display: block; }
 .keys li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 4px; background: rgba(12,24,22,.6); border: 1px solid var(--line); font-size: 15px; letter-spacing: .1em; }
 kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8px; border-radius: 4px; background: var(--paper); color: var(--ink); box-shadow: 0 2px 0 rgba(0,0,0,.4); white-space: nowrap; }
 .touchnote { margin: 0; font-size: 14px; opacity: .7; letter-spacing: .06em; }
+.ver { margin: 0; font-size: 12px; opacity: .5; letter-spacing: .14em; text-transform: uppercase; }
 .cta { align-self: flex-start; cursor: pointer; padding: 14px 30px; border: 0; border-radius: 6px; background: var(--hot); color: var(--ink);
   font-family: var(--display); font-size: 22px; letter-spacing: .04em; box-shadow: 0 5px 0 #a8321a; transition: transform .08s, box-shadow .08s; }
 .cta:hover { filter: brightness(1.08); }
@@ -213,6 +214,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
   <div class="overlay" id="menu">
     <div class="card">
       <div class="flag" aria-hidden="true"></div>
+      <p class="ver" id="ver"></p>
       <h1>Micro<span>Mayhem</span></h1>
       <p class="lede">Six toy cars on a felt-top table. Three laps. Crates of guns lie on the track. Last car running wins, or first across the line.</p>
       <div class="levels" role="group" aria-label="Difficulty level">

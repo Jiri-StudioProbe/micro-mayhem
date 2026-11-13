@@ -1,6 +1,6 @@
 # Micro Mayhem: project documentation
 
-A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell split is done (M0.5 to M0.7): `src/main.js` only builds the pieces and wires them together; the version label is M0.8 (see `docs/ROADMAP.md`).
+A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell split is done (M0.5 to M0.7): `src/main.js` only builds the pieces and wires them together. The start screen shows the version and the deployed commit (M0.8, which finished milestone M0; see `docs/ROADMAP.md`).
 
 This file is the project context for Claude Code. The game is deployed to GitHub Pages by `.github/workflows/pages.yml`: every push runs the tests, and a push to `main` that passes them is deployed and then verified against the live site (see section 9). **Planned features and the architecture they need are in `docs/ROADMAP.md`; read it before starting character creation, car selection, saved scores, aura/shop or new tracks.**
 
@@ -55,7 +55,7 @@ The game is an ES module graph. `index.html` loads `src/main.js`, which imports 
 | `src/profile.js` | `createProfile(storage)`: the one versioned JSON document in localStorage | The storage is passed in, so it runs in Node tests; `browserStorage()` returns localStorage or null |
 | `src/audio.js` | `createAudio({ getPlayer, doc, AudioContextClass })`: tones, noise, engine hum, mute | Every method is safe at any time (no gesture yet, muted, no WebAudio) |
 | `src/diag.js` | `createDiag()`: a small in-memory log of errors (frame failures, uncaught errors, rejected promises) | Shown under `?debug`; remote reporting comes in M3 |
-| `src/version.js` | `VERSION` (bumped by hand, a test keeps it equal to `package.json`) and `readBuild()` (the deployed commit, from the page's `<meta name="build">`) | Displayed in M0.8 |
+| `src/version.js` | `VERSION` (bumped by hand, a test keeps it equal to `package.json`), `readBuild()` (the deployed commit, from the page's `<meta name="build">`) and `versionLabel()` | Shown at the bottom of the start card (`#ver`, e.g. `v1.4.0 · build 16e20f6`, or `dev build` when run from a checkout) and in the `?debug` overlay. **To cut a release, bump `VERSION` and `package.json` (and `package-lock.json`) together** |
 | `src/util.js` | `clamp` | The sim keeps its own copy so it depends on nothing |
 
 Page structure above the module script:
@@ -195,7 +195,7 @@ The renderer is tested in Node against a **strict fake canvas** (`tests/helpers/
 
 - **Freeze bug, fixed (v1.3).** Rockets and shockwave rings were not culled, so a distant AI-vs-AI explosion threw `IndexSizeError` in `render()` and the loop stopped. See section 9.
 
-- **Not tested in a real browser.** I could only run the logic and a Node canvas render. Still unverified: the HTML HUD and overlay layout, the touch control feel (tune it in the Steering Lab, section 5c), and all audio. Check these first.
+- **Not verified on real devices.** The logic, the renderer (against a fake canvas), the menus, the HUD state and the touch controls (with synthetic touches) are tested in headless Chromium. Still unverified: how the touch controls *feel* on real phones (tune it in the Steering Lab, section 5c), how the HUD and overlays look at unusual screen sizes, and all audio (tests only check that nothing throws). Check these first.
 - **Props are decorative.** The felt-table clutter (blocks, planks, discs) sits off the track and has no collision, so it cannot be used as an obstacle yet.
 - **AI is simple.** It follows a lane offset, brakes to `vsafe`, and aims by lining up in front of a target. It does not dodge incoming fire or plan overtakes.
 - **Difficulty is one fixed setting.** The player's top speed is 372. AI cars cap at 366 times their skill (0.84 to 0.96, randomised per race), so even the best AI car is slower than a clean human lap.
