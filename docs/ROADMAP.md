@@ -136,6 +136,8 @@ Each milestone ends in a deployable build, green tests and a short "play it" che
 | M7 | Shop and upgrades | L | Spend aura on parts, weapons, ammo, healing, cars |
 | M8 | More tracks | L | New tracks and a track picker |
 
+**Progress.** M0.1 (test safety net) and M0.2 (test, deploy, verify pipeline) are done; see `docs/M0-baseline.md` for the numbers later steps must reproduce. Next: M0.3 self-hosted fonts, then M0.4 to M0.8 (module split, version label, docs).
+
 **M0. Solid base.** Split into ES modules (mechanical, behaviour-preserving); self-host fonts; add `VERSION`; add the CI job (existing headless tools plus a Playwright smoke test) and make the deploy depend on it; keep a local ring buffer of client errors. *How:* move code without changing it, one module per commit, run the driver study and soak after each. *Done when:* identical behaviour, CI green, the live site shows its version.
 
 **M1. Deterministic races.** Seeded `S.rng`, fixed 1/60 s step with render interpolation, a minimal `RaceConfig`, `simVersion`. *How:* swap `Math.random` call by call; add a test that runs the same seed and inputs twice and compares the result. *Risk:* a fixed step can change handling; compare the driver study and play a lap on a phone before moving on. *Done when:* same seed plus inputs gives an identical race; the driver-study numbers are statistically unchanged.

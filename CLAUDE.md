@@ -153,6 +153,8 @@ Dev tooling only; nothing here ships to players. One-time setup: `npm install` (
 | `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen |
 | `npm run serve` | Local web server on port 8000 |
 
+**Randomness in tests.** The sim is not seeded until M1, so races vary. Never assert a threshold you have not measured: run the scenario 100+ times, look at the distribution, and size the sample so a false failure is well under 0.1% per run. Two tests written without that discipline failed on CI within an hour (an autopilot race can end in 14.5 s; a random-input race may never finish). Assert invariants (finite, within limits) rather than outcomes wherever you can.
+
 `docs/M0-baseline.md` records the numbers every refactor must reproduce. Tests open the game with `?debug`, which exposes `window.__mm` (`S`, `input`, `Sim`, `tune`, `level`); keep that hook working. Any change to physics, steering, defaults or the profile should be followed by `npm test`; changing a baked-in default also means updating `tests/browser/lab.test.js` and bumping `PRESET_VERSION`.
 
 Checks worth keeping when you change physics or the track:
