@@ -1421,6 +1421,8 @@ function frame(now) {
 const lvParam = /[?&]level=(rookie|veteran)\b/.exec(location.search);
 if (lvParam) setLevel(lvParam[1], false);   // for this visit only; not saved
 if (/[?&]lab\b/.test(location.search)) startRace('lab');
+// Test/debug hook: lets tests and ?debug sessions inspect state without depending on how the code is organised.
+if (/[?&]debug\b/.test(location.search)) window.__mm = { S, input, Sim, get tune() { return tune; }, get level() { return level; } };
 const dbg = /[?&]debug\b/.test(location.search) ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 let ft = 16.7, lastAdj = performance.now() + 3000, dbgT = 0, dbgS = 0, dbgN = 0;
 function tick(now) {
