@@ -1,9 +1,17 @@
 // The game shell: canvas and camera, audio, input, HUD and overlays, the renderer, and the main loop.
 // It reads state from the simulation and writes only to S.input.
-// Moved verbatim out of index.html in M0.5; it is being split into modules in M0.5 to M0.7.
+// Moved verbatim out of index.html in M0.5a; the audio, profile, levels, diagnostics and version code now live in their own modules,
+// and the rest is being split out in M0.6 and M0.7.
 import { Sim } from './sim/sim.js';
+import { VERSION, readBuild } from './version.js';
+import { createDiag, watchWindow } from './diag.js';
+import { createProfile, browserStorage } from './profile.js';
+import { LEVELS, TUNE_DEFS, createSettings, isLevel } from './levels.js';
+import { createAudio } from './audio.js';
 (() => {
 'use strict';
+// First, so that anything that goes wrong while starting up is recorded too (shown under ?debug).
+const diag = createDiag(); watchWindow(diag, window);
 const { T, N, HALF_W, LAPS, WEAP, create, reset, step, ranking, angDiff, clamp } = Sim;
 const S = create();
 const $ = id => document.getElementById(id);
@@ -25,37 +33,9 @@ function resize() {
 }
 window.addEventListener('resize', resize); resize();
 
-/* ---------- audio ---------- */
-let AC = null, master = null, eng = null, noiseBuf = null, muted = false;
-function initAudio() {
-  if (AC) { if (AC.state === 'suspended') AC.resume(); return; }
-  try {
-    AC = new (window.AudioContext || window.webkitAudioContext)();
-    master = AC.createGain(); master.gain.value = 0.55; master.connect(AC.destination);
-    const o = AC.createOscillator(), g = AC.createGain(), f = AC.createBiquadFilter();
-    o.type = 'sawtooth'; o.frequency.value = 60; f.type = 'lowpass'; f.frequency.value = 520; g.gain.value = 0;
-    o.connect(f); f.connect(g); g.connect(master); o.start(); eng = { o, g };
-    noiseBuf = AC.createBuffer(1, AC.sampleRate * 1, AC.sampleRate);
-    const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-  } catch (e) { AC = null; }
-}
-function tone(f, d, type, v, slide) {
-  if (!AC || muted) return;
-  const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
-  o.type = type || 'square'; o.frequency.setValueAtTime(f, t);
-  if (slide) o.frequency.exponentialRampToValueAtTime(Math.max(25, f + slide), t + d);
-  g.gain.setValueAtTime(v || 0.12, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
-  o.connect(g); g.connect(master); o.start(t); o.stop(t + d + 0.02);
-}
-function noise(d, v, lp) {
-  if (!AC || muted) return;
-  const t = AC.currentTime, s = AC.createBufferSource(), g = AC.createGain(), f = AC.createBiquadFilter();
-  s.buffer = noiseBuf; f.type = 'lowpass'; f.frequency.setValueAtTime(lp || 1800, t); f.frequency.exponentialRampToValueAtTime(120, t + d);
-  g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(0.001, t + d);
-  s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + d + 0.02);
-}
-const vol = (x, y) => clamp(1 - Math.hypot(x - S.player.x, y - S.player.y) / 650, 0.08, 1);
-document.addEventListener('visibilitychange', () => { if (AC) { if (document.hidden) AC.suspend(); else if (!muted) AC.resume(); } });
+/* ---------- audio (src/audio.js) ---------- */
+const audio = createAudio({ getPlayer: () => S.player, doc: document });
+const { init: initAudio, tone, noise, vol } = audio;
 
 /* ---------- input ---------- */
 const keys = new Set(), touch = new Set();
@@ -81,70 +61,10 @@ padEl.querySelectorAll('button').forEach(b => {
 });
 /* Drive joystick: the base re-centres on wherever the thumb lands in the left zone. */
 const stickZone = $('stickZone'), stickEl = $('stick'), knobEl = $('knob');
-/* ---------- profile (persistence) ----------
-   Everything that outlives a page load (settings now; character, cars, best times and aura later) lives in ONE
-   versioned JSON document, so it can be migrated, exported and backed up as a unit. Never add ad-hoc localStorage keys. */
-const Profile = (() => {
-  const KEY = 'mm:profile', VERSION = 1;
-  const fresh = () => ({ version: VERSION, settings: { level: 'veteran', presets: {} } });
-  let data = fresh();
-  try {
-    const o = JSON.parse(localStorage.getItem(KEY) || 'null');
-    if (o && typeof o === 'object' && o.settings && typeof o.settings === 'object') {
-      data = Object.assign(fresh(), o); data.settings = Object.assign(fresh().settings, o.settings);
-    }
-    ['mm-tune', 'mm-assist'].forEach(k => localStorage.removeItem(k));   // pre-profile keys, superseded
-  } catch (_) {}
-  // migrations go here, oldest first: if (data.version < 2) { ...; data.version = 2; }
-  data.version = VERSION;
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(data)); } catch (_) {} };
-  return { data, save };
-})();
-
-/* ---------- difficulty levels ----------
-   A level is a bundle of defaults: whether the driving assist starts on, and every steering tunable. The Steering Lab
-   edits the active level; only the values you change are saved (per level), so untouched values follow new defaults.
-   Bump PRESET_VERSION when baking new defaults: it discards saved tweaks that would otherwise hide them. */
-const PRESET_VERSION = 1;
-const STEER_BASE = { gain: 2.6, curve: 2.55, maxLock: 1, speedDamp: 0.45, rate: 79, dead: 0.14, radius: 48 };
-const LEVELS = {
-  rookie:  { label: 'Rookie',  assist: true,  tune: Object.assign({}, STEER_BASE, { assistLane: 1.5, assistSpeed: 1.5 }),
-             blurb: 'Driving assist on at full strength: the car holds your lane and keeps you off the walls.' },
-  veteran: { label: 'Veteran', assist: false, tune: Object.assign({}, STEER_BASE, { assistLane: 0.3, assistSpeed: 1.1 }),
-             blurb: 'No assist: you do the steering. Assist can still be switched on.' }
-};
-/* Touch steering tunables (ranges and hints; the default values live in LEVELS). Stick steering =
-   sign(x) * min(maxLock, gain * |x|^curve), then eased by `rate`. */
-const TUNE_DEFS = [
-  { k: 'gain',        label: 'Sensitivity',           min: 0.5, max: 4,    step: 0.05, hint: 'How hard the car turns for a given thumb movement. Higher = twitchier.' },
-  { k: 'curve',       label: 'Fine control',          min: 1,   max: 3,    step: 0.05, hint: 'Above 1, small movements steer very gently while big ones still reach full lock.' },
-  { k: 'maxLock',     label: 'Maximum lock',          min: 0.3, max: 1,    step: 0.05, hint: 'Caps how sharply the car can ever turn. Lower = wider, calmer turns.' },
-  { k: 'speedDamp',   label: 'Calmer at speed',       min: 0,   max: 0.95, step: 0.05, hint: 'Reduces steering as the car goes faster, the way real cars feel stable at speed.' },
-  { k: 'rate',        label: 'Reactivity',            min: 4,   max: 100,  step: 1,    hint: 'How quickly the steering follows your thumb. Higher = snappier, lower = smoother but laggier.' },
-  { k: 'dead',        label: 'Dead zone',             min: 0,   max: 0.3,  step: 0.01, hint: 'Thumb movement around the centre that is ignored. Stops tiny wobbles.' },
-  { k: 'radius',      label: 'Stick travel (px)',     min: 30,  max: 100,  step: 1,    hint: 'How far the thumb moves for full deflection. Bigger = finer control, more thumb travel.' },
-  { k: 'assistLane',  label: 'Assist: lane hold',     min: 0,   max: 1.5,  step: 0.05, hint: 'How strongly the car steers itself along the track when you ease off. Needs ASSIST on.' },
-  { k: 'assistSpeed', label: 'Assist: corner speed',  min: 0.8, max: 1.5,  step: 0.02, hint: 'Higher lets you carry more speed into corners before the assist slows you. Needs ASSIST on.' }
-];
-function overridesFor(lv) {
-  const pr = Profile.data.settings.presets;
-  if (!pr[lv] || pr[lv].pv !== PRESET_VERSION) pr[lv] = { pv: PRESET_VERSION, tune: {}, assist: null };
-  return pr[lv];
-}
-let level = LEVELS[Profile.data.settings.level] ? Profile.data.settings.level : 'veteran';
-const tune = {};
-function loadLevel(name) {
-  level = name; Profile.data.settings.level = name;
-  const ov = overridesFor(name).tune;
-  TUNE_DEFS.forEach(d => { const v = ov[d.k]; tune[d.k] = typeof v === 'number' && isFinite(v) ? clamp(v, d.min, d.max) : LEVELS[name].tune[d.k]; });
-}
-function setTuneValue(k, v) {
-  tune[k] = v; const ov = overridesFor(level);
-  if (v === LEVELS[level].tune[k]) delete ov.tune[k]; else ov.tune[k] = v;
-  Profile.save();
-}
-const levelAssist = () => { const a = overridesFor(level).assist; return a === null ? LEVELS[level].assist : a; };
-loadLevel(level);
+/* ---------- profile and levels (src/profile.js, src/levels.js) ---------- */
+const Profile = createProfile(browserStorage());
+const settings = createSettings(Profile);
+const { tune, loadLevel, setTuneValue, levelAssist, overridesFor } = settings;
 const stick = { id: null, ox: 0, oy: 0, x: 0, y: 0 };
 function stickMove(e) {
   const zr = stickZone.getBoundingClientRect();
@@ -213,7 +133,7 @@ const posEl = $('pos'), lapEl = $('lap'), hpEl = $('hp'), hpn = $('hpn'), wname 
 const sndBtn = $('snd');
 const ord = n => n + (['TH', 'ST', 'ND', 'RD'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)]);
 const overlayOpen = () => !menu.hidden || !endEl.hidden;
-function toggleMute() { muted = !muted; sndBtn.textContent = muted ? 'SOUND OFF' : 'SOUND ON'; sndBtn.setAttribute('aria-pressed', String(!muted)); if (AC) { if (muted) AC.suspend(); else AC.resume(); } }
+function toggleMute() { audio.setMuted(!audio.muted); sndBtn.textContent = audio.muted ? 'SOUND OFF' : 'SOUND ON'; sndBtn.setAttribute('aria-pressed', String(!audio.muted)); }
 sndBtn.addEventListener('click', toggleMute);
 const assistBtns = [$('assistHud'), $('assistMenu'), $('assistTune')], levelBtns = document.querySelectorAll('[data-level]');
 let tuneReady = false;
@@ -224,16 +144,16 @@ function showAssist() {
   if (tuneReady) tuneOut.value = tuneText();
 }
 function showLevel() {
-  levelBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.level === level)));
-  $('levelBlurb').textContent = LEVELS[level].blurb;
+  levelBtns.forEach(b => b.setAttribute('aria-pressed', String(b.dataset.level === settings.level)));
+  $('levelBlurb').textContent = LEVELS[settings.level].blurb;
 }
 function setAssist(on) {
   S.assist = on;
-  overridesFor(level).assist = on === LEVELS[level].assist ? null : on; Profile.save();   // only a deliberate difference is remembered
+  overridesFor(settings.level).assist = on === LEVELS[settings.level].assist ? null : on; Profile.save();   // only a deliberate difference is remembered
   showAssist();
 }
 function setLevel(name, persist) {
-  if (!LEVELS[name]) return;
+  if (!isLevel(name)) return;
   loadLevel(name); if (persist !== false) Profile.save();
   S.assist = levelAssist(); showAssist(); showLevel();
   if (tuneReady) syncTune();
@@ -253,12 +173,12 @@ let overTimer = 0, lastCdText = '';
 const tuneEl = $('tune'), tuneBody = $('tuneBody'), tuneOut = $('tuneOut'), tuneBtn = $('tuneBtn'), labExitBtn = $('labExit');
 const lab = { lap: -1, t0: null, last: null, best: null, touches0: 0, prevHits: null };
 function tuneText() {
-  const o = { level }; TUNE_DEFS.forEach(d => { o[d.k] = +tune[d.k].toFixed(3); }); o.assist = S.assist ? 'on' : 'off';
+  const o = { level: settings.level }; TUNE_DEFS.forEach(d => { o[d.k] = +tune[d.k].toFixed(3); }); o.assist = S.assist ? 'on' : 'off';
   return JSON.stringify(o);
 }
 function refreshTune() {
   TUNE_DEFS.forEach(d => {
-    const v = tune[d.k], def = LEVELS[level].tune[d.k], el = $('tv_' + d.k);
+    const v = tune[d.k], def = LEVELS[settings.level].tune[d.k], el = $('tv_' + d.k);
     el.firstChild.nodeValue = String(+v.toFixed(2));
     el.lastChild.textContent = v === def ? 'default' : 'default ' + def;
   });
@@ -275,8 +195,8 @@ TUNE_DEFS.forEach(d => {
   inp.addEventListener('input', () => { setTuneValue(d.k, +inp.value); refreshTune(); });
 });
 $('tuneReset').addEventListener('click', () => {   // back to this level's defaults
-  const ov = overridesFor(level); ov.tune = {}; ov.assist = null; Profile.save();
-  loadLevel(level); S.assist = levelAssist(); showAssist(); syncTune();
+  const ov = overridesFor(settings.level); ov.tune = {}; ov.assist = null; Profile.save();
+  loadLevel(settings.level); S.assist = levelAssist(); showAssist(); syncTune();
 });
 $('tuneCopy').addEventListener('click', () => {
   tuneOut.value = tuneText(); tuneOut.focus(); tuneOut.select();
@@ -694,17 +614,28 @@ function frame(now) {
   requestAnimationFrame(frame);
   try { tick(now); }
   catch (e) {
-    console.error(e);
+    console.error(e); diag.record('frame', e);
     ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.globalCompositeOperation = 'source-over';
   }
+  updateDebug(now);
 }
 const lvParam = /[?&]level=(rookie|veteran)\b/.exec(location.search);
 if (lvParam) setLevel(lvParam[1], false);   // for this visit only; not saved
 if (/[?&]lab\b/.test(location.search)) startRace('lab');
 // Test/debug hook: lets tests and ?debug sessions inspect state without depending on how the code is organised.
-if (/[?&]debug\b/.test(location.search)) window.__mm = { S, input, Sim, get tune() { return tune; }, get level() { return level; } };
+if (/[?&]debug\b/.test(location.search)) window.__mm = { S, input, Sim, diag, VERSION, get build() { return readBuild(document); }, get tune() { return tune; }, get level() { return settings.level; } };
 const dbg = /[?&]debug\b/.test(location.search) ? document.body.appendChild(Object.assign(document.createElement('div'), { id: 'dbg' })) : null;
 let ft = 16.7, lastAdj = performance.now() + 3000, dbgT = 0, dbgS = 0, dbgN = 0;
+// The ?debug overlay. Called from frame() outside the try/catch, so it still updates when a frame fails (which is when it matters).
+function updateDebug(now) {
+  if (!dbg) return;
+  dbgN++;
+  if (now - dbgT > 500) {
+    const sim = dbgT ? (S.t - dbgS) / ((now - dbgT) / 1000) : 1;
+    dbg.textContent = 'fps ' + (dbgN / ((now - dbgT) / 1000)).toFixed(0) + '  frame ' + ft.toFixed(1) + 'ms\nres ' + DPR.toFixed(2) + 'x (' + cv.width + 'x' + cv.height + ')\nsim speed ' + sim.toFixed(2) + 'x  assist ' + (S.assist ? 'on' : 'off') + '\nv' + VERSION + ' build ' + readBuild(document) + '  errors ' + diag.total + (diag.last ? ': ' + diag.last.message.slice(0, 60) : '');
+    dbgT = now; dbgS = S.t; dbgN = 0;
+  }
+}
 function tick(now) {
   const raw = now - last;
   // The sim must stay real-time on slow phones: up to 0.25 s is caught up in <=1/60 s sub-steps (the sim costs ~0.1 ms each).
@@ -734,19 +665,7 @@ function tick(now) {
 
   render(dt);
   if (!hud.hidden) { updateHud(); drawMini(); }
-  if (eng && AC) {
-    const sp = Math.hypot(S.player.vx, S.player.vy), on = !muted && !hud.hidden && S.player.alive && S.state !== 'over';
-    eng.o.frequency.setTargetAtTime(52 + sp * 0.26 + (input.thr ? 14 : 0), AC.currentTime, 0.05);
-    eng.g.gain.setTargetAtTime(on ? 0.05 : 0, AC.currentTime, 0.1);
-  }
-  if (dbg) {
-    dbgN++;
-    if (now - dbgT > 500) {
-      const sim = dbgT ? (S.t - dbgS) / ((now - dbgT) / 1000) : 1;
-      dbg.textContent = 'fps ' + (dbgN / ((now - dbgT) / 1000)).toFixed(0) + '  frame ' + ft.toFixed(1) + 'ms\nres ' + DPR.toFixed(2) + 'x (' + cv.width + 'x' + cv.height + ')\nsim speed ' + sim.toFixed(2) + 'x  assist ' + (S.assist ? 'on' : 'off');
-      dbgT = now; dbgS = S.t; dbgN = 0;
-    }
-  }
+  audio.engine(Math.hypot(S.player.vx, S.player.vy), input.thr, !hud.hidden && S.player.alive && S.state !== 'over');
 }
 requestAnimationFrame(frame);
 })();
