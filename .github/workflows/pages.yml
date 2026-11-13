@@ -1,4 +1,4 @@
-name: Test and deploy
+name: GATE EXPERIMENT (throwaway)
 
 # Every push runs the tests. Only a push to main that passes them is deployed, and the deploy is then checked against the live site.
 on:
@@ -36,46 +36,7 @@ jobs:
 
   deploy:
     needs: test
-    # Branches get tests only. GitHub Pages accepts deployments from main only, so a branch deploy would fail anyway.
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/gate-check-fail'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-      pages: write
-      id-token: write
-    # Deploys queue instead of cancelling each other.
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - name: Stage the site (only what players need, stamped with this commit)
-        run: node tools/stage-site.mjs _site "$GITHUB_SHA"
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-      - id: deployment
-        uses: actions/deploy-pages@v4
-      - name: Verify the live site is this commit
-        env:
-          URL: ${{ steps.deployment.outputs.page_url }}
-        run: |
-          short="${GITHUB_SHA:0:7}"
-          for i in $(seq 1 30); do
-            live="$(curl -fsS "${URL}build.txt?cb=${RANDOM}${RANDOM}" 2>/dev/null | tr -d '[:space:]' || true)"
-            page="$(curl -fsS "${URL}?cb=${RANDOM}${RANDOM}" 2>/dev/null | grep -o 'name="build" content="[^"]*"' || true)"
-            if [ "$live" = "$GITHUB_SHA" ] && [ "$page" = "name=\"build\" content=\"$short\"" ]; then
-              echo "Live site is commit $short"; echo "### Live: ${URL} is commit \`$short\`" >> "$GITHUB_STEP_SUMMARY"; exit 0
-            fi
-            echo "attempt $i: build.txt='${live}' page='${page}', waiting"; sleep 10
-          done
-          echo "::error::The live site does not show commit ${short} after 5 minutes"
-          exit 1
+      - run: echo "GATE OPEN - tests passed, a real deploy would run here"
