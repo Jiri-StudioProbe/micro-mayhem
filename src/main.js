@@ -209,7 +209,7 @@ function readInput(dt) {
 
 /* ---------- ui ---------- */
 const hud = $('hud'), menu = $('menu'), endEl = $('end'), toasts = $('toasts'), cdEl = $('cd');
-const posEl = $('pos'), posOf = $('posOf'), lapEl = $('lap'), hpEl = $('hp'), hpn = $('hpn'), wname = $('wname'), wammo = $('wammo'), wpn = $('wpn');
+const posEl = $('pos'), lapEl = $('lap'), hpEl = $('hp'), hpn = $('hpn'), wname = $('wname'), wammo = $('wammo'), wpn = $('wpn');
 const sndBtn = $('snd');
 const ord = n => n + (['TH', 'ST', 'ND', 'RD'][(n % 100 > 10 && n % 100 < 14) ? 0 : (n % 10 < 4 ? n % 10 : 0)]);
 const overlayOpen = () => !menu.hidden || !endEl.hidden;

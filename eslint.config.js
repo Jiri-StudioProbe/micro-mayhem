@@ -8,7 +8,8 @@ export default [
   {
     // Everything is an ES module. By default no environment globals exist, so an undefined name is an error.
     languageOptions: { ecmaVersion: 'latest', sourceType: 'module', globals: {} },
-    rules: { 'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }] }
+    // An empty catch is allowed: several browser calls (storage, pointer capture) may legitimately throw and the game carries on.
+    rules: { 'no-unused-vars': ['error', { args: 'none', caughtErrors: 'none' }], 'no-empty': ['error', { allowEmptyCatch: true }] }
   },
   {
     // Tests and tools run in Node...
