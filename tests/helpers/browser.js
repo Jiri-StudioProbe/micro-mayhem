@@ -7,12 +7,13 @@ export const PHONE = { viewport: { width: 844, height: 390 }, deviceScaleFactor:
 export const DESKTOP = { viewport: { width: 1000, height: 700 } };
 
 // Every test gets a fresh context, so no saved profile leaks between tests.
-// Errors that matter: uncaught exceptions and console.error. Blocked third-party font requests are expected and ignored.
+// Errors that matter: uncaught exceptions, console.error, and any request to a third party. The game must work with no outside
+// network at all (it hosts its own fonts), so every non-local request is blocked and recorded as an error.
 export async function newPage(browser, opts = DESKTOP, { virtualTime = false } = {}) {
   const ctx = await browser.newContext(opts);
-  await ctx.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-  const page = await ctx.newPage();
   const errors = [];
+  await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, r => { errors.push('external request: ' + r.request().url()); r.abort(); });
+  const page = await ctx.newPage();
   page.on('pageerror', e => errors.push('pageerror: ' + e.message));
   page.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('console.error: ' + m.text()); });
   if (virtualTime) {

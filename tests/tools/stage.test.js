@@ -20,6 +20,11 @@ test('staging ships only what players need, stamped with the commit', () => {
   for (const never of ['package.json', 'package-lock.json', 'node_modules', 'tests', 'tools', 'docs', 'CLAUDE.md', '.git', '.github']) {
     assert.ok(!files.includes(never), `${never} must not be published`);
   }
+  assert.ok(files.includes('fonts'), 'fonts are hosted with the game');
+  const fonts = fs.readdirSync(path.join(out, 'fonts'));
+  for (const f of ['bungee-latin-400-normal.woff2', 'barlow-condensed-latin-500-normal.woff2', 'barlow-condensed-latin-600-normal.woff2', 'barlow-condensed-latin-700-normal.woff2', 'LICENSES.txt']) {
+    assert.ok(fonts.includes(f), `${f} must ship (the licence must travel with the fonts)`);
+  }
   assert.equal(fs.readFileSync(path.join(out, 'build.txt'), 'utf8').trim(), SHA);
   const html = fs.readFileSync(path.join(out, 'index.html'), 'utf8');
   assert.ok(html.includes('<meta name="build" content="0123456">'), 'stamped with the short sha');

@@ -11,7 +11,7 @@ for (const dpr of [1, 2]) {
   const msList = [], fpsList = [];
   for (let r = 0; r < REPEATS; r++) {
     const ctx = await browser.newContext({ ...PHONE, deviceScaleFactor: dpr });
-    await ctx.route(/fonts\.(googleapis|gstatic)\.com/, x => x.abort());
+    await ctx.route(/^https?:\/\/(?!127\.0\.0\.1)/, x => x.abort());
     await ctx.addInitScript(() => {
       const raf = window.requestAnimationFrame.bind(window); window.__perf = { n: 0, ms: 0 };
       window.requestAnimationFrame = cb => raf(t => { const a = performance.now(); try { cb(t); } finally { window.__perf.ms += performance.now() - a; window.__perf.n++; } });
