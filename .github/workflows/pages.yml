@@ -64,18 +64,9 @@ jobs:
           path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
-      - name: Verify the live site is this commit
+      - name: Verify every published file is live and identical
         env:
           URL: ${{ steps.deployment.outputs.page_url }}
         run: |
-          short="${GITHUB_SHA:0:7}"
-          for i in $(seq 1 30); do
-            live="$(curl -fsS "${URL}build.txt?cb=${RANDOM}${RANDOM}" 2>/dev/null | tr -d '[:space:]' || true)"
-            page="$(curl -fsS "${URL}?cb=${RANDOM}${RANDOM}" 2>/dev/null | grep -o 'name="build" content="[^"]*"' || true)"
-            if [ "$live" = "$GITHUB_SHA" ] && [ "$page" = "name=\"build\" content=\"$short\"" ]; then
-              echo "Live site is commit $short"; echo "### Live: ${URL} is commit \`$short\`" >> "$GITHUB_STEP_SUMMARY"; exit 0
-            fi
-            echo "attempt $i: build.txt='${live}' page='${page}', waiting"; sleep 10
-          done
-          echo "::error::The live site does not show commit ${short} after 5 minutes"
-          exit 1
+          tools/verify-live.sh "$URL" _site 30 10
+          echo "### Live: ${URL} is commit \`${GITHUB_SHA:0:7}\`" >> "$GITHUB_STEP_SUMMARY"
