@@ -47,6 +47,22 @@ test('sliders change the live value, RESET returns to the level defaults', async
   await close();
 });
 
+test('a dead zone of 0 plus a touch on the stick does not break the car (steering used to turn NaN and the car vanished)', async () => {
+  const { page, ctx, errors, close } = await open();
+  await page.evaluate(() => { const e = document.getElementById('t_dead'); e.value = 0; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  assert.equal(await page.evaluate(() => __mm.tune.dead), 0);
+  await page.tap('#tuneClose');
+  const z = await page.locator('#stickZone').boundingBox();
+  const cdp = await ctx.newCDPSession(page);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: z.x + z.width / 2, y: z.y + z.height / 2, id: 1 }] });   // down exactly where the stick appears: its centre
+  await page.waitForTimeout(400);   // held, so that frames read the stick
+  const s = await page.evaluate(() => ({ steer: __mm.input.steer, x: __mm.S.player.x, y: __mm.S.player.y, a: __mm.S.player.a }));
+  assert.ok(Object.values(s).every(Number.isFinite), 'steering and the car stay finite: ' + JSON.stringify(s));
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  assert.deepEqual(errors, []);
+  await close();
+});
+
 test('lap timing and wall-touch counter', async () => {
   const { page, close } = await open();
   await page.evaluate(() => { __mm.S.player.prog = -5; }); await page.waitForTimeout(150);

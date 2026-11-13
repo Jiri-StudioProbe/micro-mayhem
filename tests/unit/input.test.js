@@ -134,3 +134,15 @@ test('touchmove is blocked (no page scrolling) except inside overlays and the tu
   assert.equal(t.doc.fire('touchmove', { target: outside }).prevented, true);
   assert.equal(t.doc.fire('touchmove', { target: inside }).prevented, undefined);
 });
+
+test('a dead zone of 0 (the slider allows it) never makes the steering NaN, including at the exact centre of the stick', () => {
+  const t = setup({ tune: { dead: 0 } });
+  down(t, 100, 150);   // the thumb lands exactly on the centre of the stick: 0 / 0 without a guard
+  t.inp.readInput(1 / 60);
+  assert.equal(t.S.input.steer, 0);
+  move(t, 125, 150); t.inp.readInput(1 / 60);
+  assert.ok(Math.abs(t.S.input.steer - 0.5) < 1e-9, 'with no dead zone half the radius is half the deflection');
+  move(t, 100, 150); for (let i = 0; i < 3; i++) t.inp.readInput(1 / 60);
+  assert.equal(t.S.input.steer, 0, 'and back to the centre it recovers: steering never got stuck on NaN');
+  assert.ok(Number.isFinite(t.S.input.steer));
+});

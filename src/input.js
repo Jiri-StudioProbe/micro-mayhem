@@ -37,7 +37,7 @@ export function createInput({ S, tune, initAudio, win = window, doc = document }
       if (d2 > R) { dx *= R / d2; dy *= R / d2; }
     }
     const nx = dx / R, ny = dy / R, m = Math.hypot(nx, ny), dz = tune.dead;
-    const k = m < dz ? 0 : (m - dz) / (1 - dz) / m;
+    const k = m <= dz ? 0 : (m - dz) / (1 - dz) / m;   // <=, not <: with no dead zone, a thumb exactly at the centre would be 0 / 0 = NaN, and NaN steering makes the car's position NaN
     stick.x = nx * k; stick.y = ny * k;
     knobEl.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
   }
