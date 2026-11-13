@@ -1,6 +1,6 @@
 # Micro Mayhem: project documentation
 
-A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell is still being split: the renderer and the input/UI/game loop are M0.6 and M0.7 (see `docs/ROADMAP.md`).
+A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell is still being split: the renderer is done (M0.6); the input, UI and game loop are M0.7 (see `docs/ROADMAP.md`).
 
 This file is the project context for Claude Code. The game is deployed to GitHub Pages by `.github/workflows/pages.yml`: every push runs the tests, and a push to `main` that passes them is deployed and then verified against the live site (see section 9). **Planned features and the architecture they need are in `docs/ROADMAP.md`; read it before starting character creation, car selection, saved scores, aura/shop or new tracks.**
 
@@ -36,7 +36,12 @@ The game is an ES module graph. `index.html` loads `src/main.js`, which imports 
 | Module | What it is | Notes |
 |---|---|---|
 | `src/sim/sim.js` | The simulation (`import { Sim } from './sim/sim.js'`, also the default export) | **Pure**: no DOM, canvas, audio, storage, timers, network or `console`. Enforced by lint (`eslint.config.js` gives `src/sim/` no host globals, bans importing the shell, bans `Date`/`globalThis`). Moved out of the page byte for byte in M0.4 |
-| `src/main.js` | The game shell: canvas and camera, input, HUD and overlays, the renderer (props, minimap, `render()`), steering lab, main loop | Moved out of the page byte for byte in M0.5a; being split further in M0.6 and M0.7 |
+| `src/main.js` | The game shell: wiring, input, HUD and overlays, steering lab, camera follow, main loop | Moved out of the page byte for byte in M0.5a; the renderer left it in M0.6; input, UI and the loop are split out in M0.7 |
+| `src/render/view.js` | `createView({ canvas, coarse, startCam })` returns `{ view, cam, resize, canStepDown, stepDown }`; `K`, `TILT`, `RES_STEPS` | The screen metrics (`view.W/H/DPR/Z/baseY`) and the camera (`cam.x/y/a/c/s/shx/shy`) as two explicit objects, not loose variables |
+| `src/render/draw.js` | `createDraw({ ctx, view, cam })` returns `{ proj, poly, prism }`; `rgb` and the colour constants | `proj` is the world-to-screen projection (section 4) |
+| `src/render/world.js` | `buildProps({ T, N, HALF_W })`: the decorative toy blocks, planks and discs, placed by a seeded generator | Same props on every device; none collide with anything |
+| `src/render/minimap.js` | `createMinimap({ canvas, S, T, N })` returns `{ draw }` | The outline is drawn once, offscreen |
+| `src/render/scene.js` | `createScene({ S, ctx, view, cam, fx, draw, props, T, N, HALF_W, reducedMotion })` returns `{ render }` | Everything drawn on the main canvas, back to front. `fx.hurtFlash` is the one effect the shell controls |
 | `src/levels.js` | `LEVELS`, `TUNE_DEFS`, `PRESET_VERSION` and `createSettings(profile)` (the live level and tune values) | Pure data plus logic; unit-tested; tolerant of damaged saved data |
 | `src/profile.js` | `createProfile(storage)`: the one versioned JSON document in localStorage | The storage is passed in, so it runs in Node tests; `browserStorage()` returns localStorage or null |
 | `src/audio.js` | `createAudio({ getPlayer, doc, AudioContextClass })`: tones, noise, engine hum, mute | Every method is safe at any time (no gesture yet, muted, no WebAudio) |
@@ -73,13 +78,13 @@ The sim pushes plain objects onto `S.events`. The shell drains and clears the ar
 
 To add sounds, toasts or screen effects, add a new event type in the sim and a case in `handleEvents()`.
 
-### Shell: functions to know
+### Shell and renderer: functions to know
 
 | Function | Purpose |
 |---|---|
-| `proj(wx, wy, h)` | World to screen. Returns `[sx, sy, perspectiveScale, forwardDistance]` |
-| `prism(pts, h0, h1, topCol, sideCol)` | Extruded polygon with back-face culling and per-face shading. Used for walls, props, cars and crates |
-| `render()` | Draws the felt, track, then every object sorted by forward depth (painter's algorithm), then particles, fog gradient and damage vignette |
+| `proj(wx, wy, h)` (`src/render/draw.js`) | World to screen. Returns `[sx, sy, perspectiveScale, forwardDistance]` |
+| `prism(pts, h0, h1, topCol, sideCol)` (`src/render/draw.js`) | Extruded polygon with back-face culling and per-face shading. Used for walls, props, cars and crates |
+| `render()` (`src/render/scene.js`) | Draws the felt, track, then every object sorted by forward depth (painter's algorithm), then particles, fog gradient and damage vignette |
 | `updateHud()` | Writes to the DOM only when a value changed |
 | `startRace()` / `showEnd()` | Overlay and state transitions |
 | `frame()` | Main loop: input, sim step, events, attract-mode restart, camera follow, render, HUD, engine sound |
@@ -156,12 +161,13 @@ Dev tooling only; nothing here ships to players. One-time setup: `npm install` (
 |---|---|
 | `npm test` | Everything below, about 2 minutes |
 | `npm run lint` | ESLint: undefined names, dead code, and the simulation's purity rules (CI runs it before the tests) |
-| `npm run test:unit` | Unit tests of the small modules (profile, levels, audio, diagnostics, version), about 1 s |
+| `npm run test:unit` | Unit tests of the small modules (profile, levels, audio, diagnostics, version, and the renderer: view, projection and prisms, props, minimap, scene), about 2 s |
 | `npm run test:sim` | Headless simulation tests, about 25 s |
 | `npm run test:browser` | Real-browser tests: menus, race flow, touch controls, the lab, saved profile, a 9,000-frame soak |
 | `npm run study` | The driver study (keyboard-style and thumb-style drivers, with and without assist) |
 | `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen (real time; noisy) |
 | `npm run perf:cpu` | CPU cost per frame in virtual time (about 1% noise); compare before and after a refactor in alternating runs, as `tools/perf-compare.sh` does for the real-time measure |
+| `tools/golden-compare.sh <commit>` | **Did a refactor change any pixel?** Renders 10 deterministic scenarios (28 frames: attract mode on three screen shapes, countdown and start, every entity and effect, wrecks, hit flash, shake, reduced motion, the lab) from that commit and from the working tree, and compares the exact pixels of the canvas and minimap. About 1.5 minutes. `npm run golden` runs the capture and compare steps by hand |
 | `npm run serve` | Local web server on port 8000 |
 
 **Randomness in tests.** The sim is not seeded until M1, so races vary. Never assert a threshold you have not measured: run the scenario 100+ times, look at the distribution, and size the sample so a false failure is well under 0.1% per run. Two tests written without that discipline failed on CI within an hour (an autopilot race can end in 14.5 s; a random-input race may never finish). Assert invariants (finite, within limits) rather than outcomes wherever you can.
@@ -174,7 +180,7 @@ Checks worth keeping when you change physics or the track:
 - The track never comes within about `2 * HALF_W + 40` of itself (otherwise lanes overlap on tight S-bends). The current minimum is about 429.
 - With the autopilot as the player, races finish in about 70 to 85 s and roughly half end by combat before the line.
 
-The renderer can be checked in Node with `@napi-rs/canvas`: stub `document`, `window` and `requestAnimationFrame`, call the frame callback repeatedly, and save the canvas as a PNG.
+The renderer is tested in Node against a **strict fake canvas** (`tests/helpers/fakes.js`) that throws on a negative arc or ellipse radius, as a real canvas does, and also rejects NaN coordinates. That makes the freeze bug (section 9) a fast unit test. The renderer guards in two independent layers (depth culling, and clamping radii), so a test that removes only one layer correctly still passes; it fails when both are gone.
 
 ## 7. Known limitations and caveats
 
@@ -206,7 +212,7 @@ Roughly in order of payoff:
 
 ## 9. Conventions used
 
-- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell IIFE in `src/main.js` is split further in M0.6 and M0.7.
+- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell IIFE in `src/main.js` is split further in M0.7.
 - **Lint is part of the build.** `npm run lint` must be clean; CI runs it before the tests. Do not weaken the `src/sim/` rules to make a change compile: pass the data in instead.
 - Design tokens are CSS variables in `:root`. The look is a dark felt table with chunky toy props, a pop-art red/gold/cyan palette, Bungee for headings and numbers, and Barlow Condensed for UI text.
 - DOM is touched only through cached element references and only when a value changes.

@@ -20,7 +20,7 @@ Recorded at the end of M0.1, on the single-file build. Every later M0 step must 
 | Driver study, thumb-style driver, no assist | 0/12 wins, average place 4.3, 8.3 wall hits | `npm run study` |
 | Driver study, thumb-style driver, Rookie assist | 11/12 wins, average place 1.4, 0.1 wall hits | `npm run study` |
 | Driver study, keyboard-style driver | 7/12 wins, average place 2.8, 1 wall hit | `npm run study` |
-| Whole test suite | 126 tests, about 2 min (CI: about 2 min of tests, 2.5 to 3 min with setup) | `npm test` |
+| Whole test suite | 166 tests, about 2 min (CI: about 2 min of tests, 2.5 to 3 min with setup) | `npm test` |
 
 **Never judge a refactor against a number written down in an earlier session**; run `tools/perf-compare.sh <commit>`, which measures the earlier commit and the working tree back to back. Expect about 10% noise in the performance numbers and some variation in the driver study (the sim is not seeded until M1). The statistical sim tests use 40 races per driver, chosen by bootstrapping 150 measured races so a false failure is about 0.03% per run.
 
@@ -33,3 +33,10 @@ Recorded at the end of M0.1, on the single-file build. Every later M0 step must 
 ## Debug hook
 
 `window.__mm` (`S`, `input`, `Sim`, `tune`, `level`) exists only when the page is opened with `?debug`. Tests use it to read state without depending on how the code is organised; keep it working through the module split.
+
+## Proving that a refactor changed nothing
+
+Use these two together; neither depends on a number written down in an earlier session.
+
+- **Pixels:** `tools/golden-compare.sh <commit>` renders 10 scenarios (28 frames) from that commit and from the working tree with a seeded `Math.random`, a fake clock and scripted frames, and compares the exact pixels of the game canvas and the minimap. The harness itself was checked three ways: two captures of the same code are identical, a subtle gradient change is detected in all 28 canvas images, and a one-pixel minimap marker change is detected in all 21 minimap images. M0.6 (the renderer split) result: **all 56 images identical**.
+- **Speed:** alternating before/after runs of `npm run perf:cpu` (about 1% noise); M0.6 result: 7.43 to 7.58 ms after against 7.46 to 7.52 ms before.
