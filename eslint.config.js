@@ -18,7 +18,7 @@ export default [
   },
   {
     // ...and their page.evaluate() callbacks run in the browser, where the game exposes its debug hook (?debug).
-    files: ['tests/browser/**/*.js', 'tests/helpers/browser.js', 'tools/perf.js'],
+    files: ['tests/browser/**/*.js', 'tests/helpers/browser.js', 'tools/perf.js', 'tools/golden.mjs'],
     languageOptions: { globals: { ...globals.browser, __mm: 'readonly' } }
   },
   {

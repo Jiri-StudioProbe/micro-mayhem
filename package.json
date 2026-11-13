@@ -15,7 +15,8 @@
     "stage": "node tools/stage-site.mjs _site",
     "lint": "eslint .",
     "test:unit": "node --test \"tests/unit/*.test.js\"",
-    "perf:cpu": "node tools/perf-cpu.mjs"
+    "perf:cpu": "node tools/perf-cpu.mjs",
+    "golden": "node tools/golden.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
