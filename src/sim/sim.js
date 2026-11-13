@@ -14,6 +14,7 @@ const frand = (S, a, b) => a + S.fxRng() * (b - a);
 const newSeed = master => (master() * 4294967296) >>> 0;
 
 const LAPS = 3, HALF_W = 88, SP = 22, LATACC = 640;
+const STEP = 1 / 60;   // the simulation's time step: the shell steps the sim in exactly this many seconds, always (M1.2)
 const CTRL = [[150,250],[650,200],[1150,220],[1650,300],[2000,520],[2050,900],[1800,1150],[1450,1050],[1250,780],[1000,700],[800,950],[1000,1250],[1300,1500],[1250,1800],[800,1900],[350,1750],[100,1400],[350,1100],[150,800],[-100,500]];
 
 /* ---------- track ---------- */
@@ -487,6 +488,6 @@ function endRace(S, kind) {
   S.events.push({ t: 'over', kind });
 }
 
-return { T, N, HALF_W, LAPS, WEAP, create, reset, step, ranking, nearest, TAU, angDiff, clamp };
+return { T, N, HALF_W, LAPS, STEP, WEAP, create, reset, step, ranking, nearest, TAU, angDiff, clamp };
 })();
 export default Sim;

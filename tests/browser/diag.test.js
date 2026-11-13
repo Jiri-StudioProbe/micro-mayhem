@@ -38,7 +38,7 @@ test('a failing frame is logged, shown under ?debug, and the game keeps running'
   await page.evaluate(() => { window.__saved = __mm.S.bullets; __mm.S.bullets = null; });   // the next sim step throws
   await page.waitForFunction(() => __mm.diag.total > 2);
   const last = await page.evaluate(() => __mm.diag.last);
-  assert.equal(last.source, 'frame'); assert.match(last.message, /null|length|undefined/i);
+  assert.equal(last.source, 'frame'); assert.match(last.message, /null|length|undefined|iterable/i);   // whichever part of the frame reads the broken state first
   await page.waitForTimeout(600);   // the overlay refreshes twice a second
   assert.match(await page.textContent('#dbg'), /errors \d+: /);
   assert.ok(errors.some(e => e.startsWith('console.error')), 'the error is still reported to the console');

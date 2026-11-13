@@ -3,7 +3,8 @@
 //   input.js      keyboard, touch pad and joystick -> S.input
 //   ui/           the HUD and screens (hud.js), buttons for sound, assist and level (settings.js), the Steering Lab (lab.js), ?debug (debug.js)
 //   game.js       race flow and the simulation's events -> sound, toasts, effects
-//   camera.js     the camera rig;  render/  everything drawn;  audio.js  sound;  loop.js  the frame loop
+//   camera.js     the camera rig;  render/  everything drawn;  audio.js  sound
+//   loop.js       the frame loop: fixed simulation steps (stepper.js), drawn in between by interpolation (interp.js)
 // Moved out of index.html in M0.5a and split into these modules in M0.5 to M0.7; the modules never import each other in a circle:
 // where one needs an action from another (start a race, leave the lab), the shell passes it in with connect().
 import { Sim } from './sim/sim.js';
@@ -24,12 +25,13 @@ import { createSettingsUi } from './ui/settings.js';
 import { createLab } from './ui/lab.js';
 import { createDebugOverlay } from './ui/debug.js';
 import { createCameraRig } from './camera.js';
+import { createInterp } from './interp.js';
 import { createGame } from './game.js';
 import { createLoop } from './loop.js';
 
 // First, so that anything that goes wrong while starting up is recorded too (shown under ?debug).
 const diag = createDiag(); watchWindow(diag, window);
-const { T, N, HALF_W, LAPS, WEAP, create, reset, step, ranking, angDiff } = Sim;
+const { T, N, HALF_W, LAPS, STEP, WEAP, create, reset, step, ranking, angDiff } = Sim;
 const S = create(newSeed());   // the seed decides every race of this session (S.seed holds the current race's)
 const $ = id => document.getElementById(id);
 const cv = $('c'), ctx = cv.getContext('2d');
@@ -51,6 +53,7 @@ const hud = createHud({ S, doc: document, N, LAPS, WEAP, ranking, stickRelease: 
 const settingsUi = createSettingsUi({ S, doc: document, audio, settings, Profile });
 const lab = createLab({ S, doc: document, N, settings, Profile, settingsUi });
 const rig = createCameraRig({ S, cam, ranking, angDiff });
+const interp = createInterp({ S, angDiff });
 const game = createGame({ S, doc: document, reset, audio, hud, lab, input, rig, fx });
 input.connect({ overlayOpen: hud.overlayOpen, startRace: game.startRace, toggleMute: settingsUi.toggleMute, exitLab: game.exitLab });
 lab.connect({ startLab: () => game.startRace('lab'), exitLab: game.exitLab });
@@ -69,4 +72,4 @@ if (/[?&]lab\b/.test(location.search)) game.startRace('lab');
 if (DEBUG) window.__mm = { S, input: S.input, Sim, diag, VERSION, get build() { return readBuild(document); }, get tune() { return settings.tune; }, get level() { return settings.level; } };
 const debugUpdate = DEBUG ? createDebugOverlay({ S, view, canvas: cv, diag, doc: document, VERSION, build: () => readBuild(document) }) : null;
 
-createLoop({ S, step, reset, ranking, ctx, diag, canStepDown, stepDown, input, game, lab, hud, rig, fx, render, drawMini: minimap.draw, audio, debugUpdate }).start();
+createLoop({ S, STEP, step, reset, ranking, ctx, diag, canStepDown, stepDown, input, game, lab, hud, rig, interp, fx, render, drawMini: minimap.draw, audio, debugUpdate }).start();
