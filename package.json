@@ -13,7 +13,9 @@
     "perf": "node tools/perf.js",
     "test:ci": "node --test --test-reporter=spec --test-concurrency=1 \"tests/**/*.test.js\"",
     "stage": "node tools/stage-site.mjs _site",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:unit": "node --test \"tests/unit/*.test.js\"",
+    "perf:cpu": "node tools/perf-cpu.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

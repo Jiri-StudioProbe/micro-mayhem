@@ -1,6 +1,6 @@
 # Micro Mayhem: project documentation
 
-A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup, the CSS and, for now, the game shell as one inline module; the simulation lives in `src/sim/sim.js`. There is no build step and no image assets. The shell is being split into modules in M0.5 to M0.7 (see `docs/ROADMAP.md`).
+A top-down, slightly pseudo-3D toy-car combat racer. Six cars, three laps, a looping track with multiple turns, pickup weapons, damage and destruction. The page (`index.html`) holds the markup and the CSS; the code is ES modules in `src/` (the simulation in `src/sim/sim.js`, the game shell in `src/main.js`, and small modules around them). There is no build step and no image assets. The shell is still being split: the renderer and the input/UI/game loop are M0.6 and M0.7 (see `docs/ROADMAP.md`).
 
 This file is the project context for Claude Code. The game is deployed to GitHub Pages by `.github/workflows/pages.yml`: every push runs the tests, and a push to `main` that passes them is deployed and then verified against the live site (see section 9). **Planned features and the architecture they need are in `docs/ROADMAP.md`; read it before starting character creation, car selection, saved scores, aura/shop or new tracks.**
 
@@ -31,10 +31,18 @@ This file is the project context for Claude Code. The game is deployed to GitHub
 
 ## 3. File structure
 
-The game is an ES module graph. `index.html` has one `<script type="module">` that imports the simulation and then runs the shell:
+The game is an ES module graph. `index.html` loads `src/main.js`, which imports the rest:
 
-1. **`src/sim/sim.js`** is the simulation (`import { Sim } from './src/sim/sim.js'`, also the default export). It is pure: no DOM, canvas, audio, storage, timers, network or `console`. This is **enforced by lint** (`eslint.config.js` gives `src/sim/` no host globals at all, bans importing the shell, and bans `Date`/`globalThis`), so a violation fails CI. Tests and tools import it directly in Node. It was moved out of the page byte for byte in M0.4.
-2. **The game shell** is the rest of the inline module in `index.html`, one IIFE that holds the canvas and camera, audio, input, HUD and overlays, the renderer (props, minimap, `render()`) and the main loop. It reads state from `Sim` and writes only to `S.input`. It is split into `src/` modules in M0.5 to M0.7.
+| Module | What it is | Notes |
+|---|---|---|
+| `src/sim/sim.js` | The simulation (`import { Sim } from './sim/sim.js'`, also the default export) | **Pure**: no DOM, canvas, audio, storage, timers, network or `console`. Enforced by lint (`eslint.config.js` gives `src/sim/` no host globals, bans importing the shell, bans `Date`/`globalThis`). Moved out of the page byte for byte in M0.4 |
+| `src/main.js` | The game shell: canvas and camera, input, HUD and overlays, the renderer (props, minimap, `render()`), steering lab, main loop | Moved out of the page byte for byte in M0.5a; being split further in M0.6 and M0.7 |
+| `src/levels.js` | `LEVELS`, `TUNE_DEFS`, `PRESET_VERSION` and `createSettings(profile)` (the live level and tune values) | Pure data plus logic; unit-tested; tolerant of damaged saved data |
+| `src/profile.js` | `createProfile(storage)`: the one versioned JSON document in localStorage | The storage is passed in, so it runs in Node tests; `browserStorage()` returns localStorage or null |
+| `src/audio.js` | `createAudio({ getPlayer, doc, AudioContextClass })`: tones, noise, engine hum, mute | Every method is safe at any time (no gesture yet, muted, no WebAudio) |
+| `src/diag.js` | `createDiag()`: a small in-memory log of errors (frame failures, uncaught errors, rejected promises) | Shown under `?debug`; remote reporting comes in M3 |
+| `src/version.js` | `VERSION` (bumped by hand, a test keeps it equal to `package.json`) and `readBuild()` (the deployed commit, from the page's `<meta name="build">`) | Displayed in M0.8 |
+| `src/util.js` | `clamp` | The sim keeps its own copy so it depends on nothing |
 
 Page structure above the module script:
 
@@ -118,10 +126,10 @@ All values are in the Sim IIFE unless noted.
 ### 5c. Steering Lab and tuning panel
 
 - **Lab mode.** `reset(S, 'lab')` / `S.lab`: the player alone on the track, no rivals, no crates or weapons, no countdown, damage disabled (`hurt()` returns early), and the race never ends (finish and last-car checks are skipped). Start it from the start screen (STEERING LAB) or open the game with `?lab`. `Esc` or EXIT leaves it. The HUD shows last lap, best lap and wall touches (`S.touches`, counted on the rising edge of the player touching a wall).
-- **Difficulty levels.** `LEVELS` (shell) is a registry: each level has `assist` (starts on or off), a one-line `blurb`, and a `tune` object with a default for every tunable. **Veteran**: the owner's tuned defaults, assist off (`assistLane` 0.3, `assistSpeed` 1.1). **Rookie**: the same steering values with assist on and both assist sliders at their maximum (`assistLane` 1.5, `assistSpeed` 1.5; measured with the driver study, "maximum help" for corner speed would be the slider minimum, but that makes the car too slow to win, so Rookie uses the slider maximum). The first-run level is Veteran. `?level=rookie|veteran` selects a level for one visit without saving.
-- **Panel.** `TUNE_DEFS` is the list of tunables (key, label, range, hint); the default *values* live in `LEVELS[level].tune`. The panel builds a slider per entry, switches level (ROOKIE/VETERAN), and has RESET (this level's defaults), COPY (JSON of the current values including the level, for baking in) and the ASSIST toggle. It is a side panel in landscape and a top sheet in portrait so the left thumb can keep driving while the right adjusts sliders.
-- **Saved tweaks.** Persistence goes through `Profile` (one versioned JSON document under `mm:profile`; do not add other localStorage keys). Per level it stores only the values the player changed (`presets[level] = { pv, tune: {changed keys}, assist: null | bool }`), so untouched values follow new defaults. Old pre-profile keys (`mm-tune`, `mm-assist`) are deleted on load.
-- **Baking in new defaults.** Paste the COPY output, copy each value into `LEVELS[level].tune` (and `assist`), and **bump `PRESET_VERSION`** so saved tweaks from the old defaults stop hiding the new ones. Check with `?lab` on a profile that has stale saved values.
+- **Difficulty levels.** `LEVELS` (`src/levels.js`) is a registry: each level has `assist` (starts on or off), a one-line `blurb`, and a `tune` object with a default for every tunable. **Veteran**: the owner's tuned defaults, assist off (`assistLane` 0.3, `assistSpeed` 1.1). **Rookie**: the same steering values with assist on and both assist sliders at their maximum (`assistLane` 1.5, `assistSpeed` 1.5; measured with the driver study, "maximum help" for corner speed would be the slider minimum, but that makes the car too slow to win, so Rookie uses the slider maximum). The first-run level is Veteran. `?level=rookie|veteran` selects a level for one visit without saving.
+- **Panel.** `TUNE_DEFS` (`src/levels.js`) is the list of tunables (key, label, range, hint); the default *values* live in `LEVELS[level].tune`. The panel builds a slider per entry, switches level (ROOKIE/VETERAN), and has RESET (this level's defaults), COPY (JSON of the current values including the level, for baking in) and the ASSIST toggle. It is a side panel in landscape and a top sheet in portrait so the left thumb can keep driving while the right adjusts sliders.
+- **Saved tweaks.** Persistence goes through `Profile` (`src/profile.js`: one versioned JSON document under `mm:profile`; do not add other localStorage keys). Damaged saved data is repaired, never trusted: a profile naming level `constructor` or with non-object presets used to throw during startup (permanently, because it was persisted); `tests/unit/levels.test.js` now covers about 25 hostile shapes. Per level it stores only the values the player changed (`presets[level] = { pv, tune: {changed keys}, assist: null | bool }`), so untouched values follow new defaults. Old pre-profile keys (`mm-tune`, `mm-assist`) are deleted on load.
+- **Baking in new defaults.** Paste the COPY output, copy each value into `LEVELS[level].tune` in `src/levels.js` (and `assist`), and **bump `PRESET_VERSION`** so saved tweaks from the old defaults stop hiding the new ones. Check with `?lab` on a profile that has stale saved values.
 - **What each tunable does.** `gain` scales the stick; `curve` (>1) makes the centre gentler; `maxLock` caps steering; `speedDamp` reduces steering with speed; `rate` is the smoothing speed; `dead` is the dead zone; `radius` is thumb travel for full deflection (also sizes the stick graphic); `assistLane` scales the assist's lane-hold steering; `assistSpeed` is the corner speed the assist allows, as a multiple of the AI's safe speed. `assistLane` and `assistSpeed` are pushed into `S.tune` every frame and read by `assist()`; the others are shell-only (`readInput()` and `stickMove()`).
 
 ## 6. Testing without a browser
@@ -148,10 +156,12 @@ Dev tooling only; nothing here ships to players. One-time setup: `npm install` (
 |---|---|
 | `npm test` | Everything below, about 2 minutes |
 | `npm run lint` | ESLint: undefined names, dead code, and the simulation's purity rules (CI runs it before the tests) |
+| `npm run test:unit` | Unit tests of the small modules (profile, levels, audio, diagnostics, version), about 1 s |
 | `npm run test:sim` | Headless simulation tests, about 25 s |
 | `npm run test:browser` | Real-browser tests: menus, race flow, touch controls, the lab, saved profile, a 9,000-frame soak |
 | `npm run study` | The driver study (keyboard-style and thumb-style drivers, with and without assist) |
-| `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen |
+| `npm run perf` | Main-thread JavaScript cost per frame on a phone-sized screen (real time; noisy) |
+| `npm run perf:cpu` | CPU cost per frame in virtual time (about 1% noise); compare before and after a refactor in alternating runs, as `tools/perf-compare.sh` does for the real-time measure |
 | `npm run serve` | Local web server on port 8000 |
 
 **Randomness in tests.** The sim is not seeded until M1, so races vary. Never assert a threshold you have not measured: run the scenario 100+ times, look at the distribution, and size the sample so a false failure is well under 0.1% per run. Two tests written without that discipline failed on CI within an hour (an autopilot race can end in 14.5 s; a random-input race may never finish). Assert invariants (finite, within limits) rather than outcomes wherever you can.
@@ -196,7 +206,7 @@ Roughly in order of payoff:
 
 ## 9. Conventions used
 
-- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell IIFE is still inline until M0.7.
+- Plain browser JavaScript as ES modules, no runtime dependencies (dev tooling only: Playwright and ESLint). The shell IIFE in `src/main.js` is split further in M0.6 and M0.7.
 - **Lint is part of the build.** `npm run lint` must be clean; CI runs it before the tests. Do not weaken the `src/sim/` rules to make a change compile: pass the data in instead.
 - Design tokens are CSS variables in `:root`. The look is a dark felt table with chunky toy props, a pop-art red/gold/cyan palette, Bungee for headings and numbers, and Barlow Condensed for UI text.
 - DOM is touched only through cached element references and only when a value changes.
