@@ -9,7 +9,7 @@ function make(over = {}) {
   const S = { lab: false, attract: false, state: 'race', cars: [{ alive: true }], player: { vx: 0, vy: 0, alive: true }, input: { thr: 0 } };
   const parts = {
     S, STEP, ctx: { setTransform() { log.push('ctx reset'); } }, diag: { record: (src, e) => log.push('diag ' + src + ' ' + e.message) },
-    step: (s, dt) => { log.push('step ' + dt); }, reset: (s, m) => { log.push('reset ' + m); }, ranking: () => [],
+    step: (s, dt) => { log.push('step ' + dt); }, reset: (s, cfg) => { log.push('reset ' + cfg.mode); }, raceConfig: mode => ({ mode }), ranking: () => [],
     canStepDown: () => false, stepDown() {}, input: { readInput: dt => log.push('input ' + dt) }, game: { handleEvents: () => log.push('events') },
     lab: { track: () => log.push('lab.track'), updateHud: () => log.push('lab.hud') }, hud: { visible: () => true, update: () => log.push('hud') },
     rig: { follow: dt => log.push('follow') }, interp: { snapshot: () => log.push('snapshot'), apply: a => log.push('apply ' + a.toFixed(2)), restore: () => log.push('restore') },

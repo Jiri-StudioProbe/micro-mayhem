@@ -15,6 +15,45 @@ const newSeed = master => (master() * 4294967296) >>> 0;
 
 const LAPS = 3, HALF_W = 88, SP = 22, LATACC = 640;
 const STEP = 1 / 60;   // the simulation's time step: the shell steps the sim in exactly this many seconds, always (M1.2)
+// The version of the rules. A saved race is only replayable by the sim that played it, so ANY change to physics, AI, weapons, damage, the track
+// or the order or number of random draws must bump this (tests/sim/simversion.test.js fails until it does). Version 1 is the sim as of M1.3.
+const SIM_VERSION = 1;
+
+/* ---------- race configuration ---------- */
+// A RaceConfig is plain data that, with the steps' inputs, fully determines a race: { mode, seed, assist, tune: { assistLane, assistSpeed } }.
+// mode: 'race' (countdown, rivals, crates), 'attract' (the AI drives the player car too) or 'lab' (the player alone, no damage, no end).
+// The shell builds one for each race; a saved race stores it with SIM_VERSION. makeConfig() fills in defaults and repairs a config
+// (the shell's path); configProblems() says what is wrong with one without repairing it (the path for anything loaded from storage).
+const MODES = ['race', 'attract', 'lab'];
+const TUNE_LIMITS = { assistLane: [0, 1.5], assistSpeed: [0.8, 1.5] };   // the ranges the tuning panel allows (src/levels.js has the same numbers)
+const DEFAULT_TUNE = { assistLane: 1, assistSpeed: 1.1 };
+const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+const isSeed = v => Number.isInteger(v) && v >= 0 && v <= 4294967295;
+function makeConfig(c) {
+  c = isObj(c) ? c : {};
+  const t = isObj(c.tune) ? c.tune : {};
+  const tune = {};
+  for (const k in TUNE_LIMITS) tune[k] = typeof t[k] === 'number' && isFinite(t[k]) ? clamp(t[k], TUNE_LIMITS[k][0], TUNE_LIMITS[k][1]) : DEFAULT_TUNE[k];
+  const cfg = { mode: MODES.includes(c.mode) ? c.mode : 'race', assist: c.assist === true, tune };
+  if (typeof c.seed === 'number' && isFinite(c.seed)) cfg.seed = c.seed >>> 0;   // no seed: reset() takes the next one from the session's master stream
+  return cfg;
+}
+function configProblems(c) {
+  if (!isObj(c)) return ['the config is not an object'];
+  const p = [];
+  for (const k of Object.keys(c)) if (!['mode', 'seed', 'assist', 'tune'].includes(k)) p.push('unknown field ' + k);
+  if (!MODES.includes(c.mode)) p.push('mode must be one of ' + MODES.join(', '));
+  if (c.seed !== undefined && !isSeed(c.seed)) p.push('seed must be an integer from 0 to 4294967295');
+  if (typeof c.assist !== 'boolean') p.push('assist must be true or false');
+  if (!isObj(c.tune)) p.push('tune must be an object');
+  else {
+    for (const k of Object.keys(c.tune)) if (!(k in TUNE_LIMITS)) p.push('unknown tune value ' + k);
+    for (const k in TUNE_LIMITS) { const v = c.tune[k]; if (typeof v !== 'number' || !isFinite(v) || v < TUNE_LIMITS[k][0] || v > TUNE_LIMITS[k][1]) p.push('tune.' + k + ' must be a number from ' + TUNE_LIMITS[k][0] + ' to ' + TUNE_LIMITS[k][1]); }
+  }
+  return p;
+}
+// What a saved race needs to be replayed: the sim's version and the exact config (with the seed that was actually used). Plain JSON.
+const raceHeader = S => ({ simVersion: S.simVersion, config: JSON.parse(JSON.stringify(S.config)) });
 const CTRL = [[150,250],[650,200],[1150,220],[1650,300],[2000,520],[2050,900],[1800,1150],[1450,1050],[1250,780],[1000,700],[800,950],[1000,1250],[1300,1500],[1250,1800],[800,1900],[350,1750],[100,1400],[350,1100],[150,800],[-100,500]];
 
 /* ---------- track ---------- */
@@ -110,9 +149,15 @@ function create(seed = 1) {
   return S;
 }
 
-// `seed` makes the race: the same seed (with the same inputs and steps) always plays out the same. Without one, the next seed comes from the master stream.
-function reset(S, mode, seed) {
-  S.seed = seed === undefined ? newSeed(S.master) : seed >>> 0;
+// Starts a race from a RaceConfig (see above). The same config, steps and inputs always play out the same. Without a seed in the config, the next
+// one comes from the master stream. `reset(S, 'race', seed)` is shorthand for a config with only a mode and a seed (the rest are defaults).
+// S.config is the normalized config with the seed actually used, and S.simVersion the rules it was played under. S.lab and S.attract are
+// conveniences derived from the mode. (S.assist can still be toggled during a race; that is an input, which a replay has to record.)
+function reset(S, config, seed) {
+  const cfg = makeConfig(typeof config === 'string' || config === undefined ? { mode: config, seed } : config), mode = cfg.mode;
+  S.seed = cfg.seed === undefined ? newSeed(S.master) : cfg.seed; cfg.seed = S.seed;
+  S.config = cfg; S.simVersion = SIM_VERSION;
+  S.assist = cfg.assist; S.tune.assistLane = cfg.tune.assistLane; S.tune.assistSpeed = cfg.tune.assistSpeed;
   S.rng = mulberry32(deriveSeed(S.seed, 1)); S.fxRng = mulberry32(deriveSeed(S.seed, 2));
   S.cars.length = S.bullets.length = S.rockets.length = S.mines.length = S.parts.length = S.rings.length = S.crates.length = 0;
   S.finishOrder.length = 0; S.result = null; S.deadT = 0; S.raceT = 0; S.shake = 0; S.touches = 0;
@@ -488,6 +533,6 @@ function endRace(S, kind) {
   S.events.push({ t: 'over', kind });
 }
 
-return { T, N, HALF_W, LAPS, STEP, WEAP, create, reset, step, ranking, nearest, TAU, angDiff, clamp };
+return { T, N, HALF_W, LAPS, STEP, SIM_VERSION, TUNE_LIMITS, makeConfig, configProblems, raceHeader, WEAP, create, reset, step, ranking, nearest, TAU, angDiff, clamp };
 })();
 export default Sim;

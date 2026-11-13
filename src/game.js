@@ -3,7 +3,7 @@
 // Moved verbatim out of src/main.js in M0.7.
 import { ord } from './ui/format.js';
 
-export function createGame({ S, doc, reset, audio, hud, lab, input, rig, fx }) {
+export function createGame({ S, doc, reset, raceConfig, audio, hud, lab, input, rig, fx }) {
   const { init: initAudio, tone, noise, vol } = audio;
   const { toast } = hud;
   let overTimer = 0;
@@ -14,13 +14,13 @@ export function createGame({ S, doc, reset, audio, hud, lab, input, rig, fx }) {
     clearTimeout(overTimer);
     lab.setLab(mode === 'lab');
     if (mode === 'lab') lab.resetStats();
-    reset(S, mode);
+    reset(S, raceConfig(mode));
     S.input.steer = S.input.thr = S.input.brk = S.input.fire = 0;
     hud.showRace();
     rig.reset(); fx.hurtFlash = 0;
   }
   function exitLab() {
-    lab.setLab(false); reset(S, 'attract');
+    lab.setLab(false); reset(S, raceConfig('attract'));
     input.stickRelease(); S.input.steer = S.input.thr = S.input.brk = S.input.fire = 0;
     hud.showMenu();
   }

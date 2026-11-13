@@ -4,7 +4,7 @@
 // a slow phone several steps in one, and the renderer draws the moment between two steps by interpolation (src/interp.js).
 import { createStepper } from './stepper.js';
 
-export function createLoop({ S, STEP, step, reset, ranking, ctx, diag, canStepDown, stepDown, input, game, lab, hud, rig, interp, fx, render, drawMini, audio, debugUpdate, requestFrame = cb => requestAnimationFrame(cb), now: clock = () => performance.now() }) {
+export function createLoop({ S, STEP, step, reset, raceConfig, ranking, ctx, diag, canStepDown, stepDown, input, game, lab, hud, rig, interp, fx, render, drawMini, audio, debugUpdate, requestFrame = cb => requestAnimationFrame(cb), now: clock = () => performance.now() }) {
   const stepper = createStepper({ STEP });
   let last = clock(), attractT = 0;
   let ft = 16.7, lastAdj = clock() + 3000;
@@ -34,7 +34,7 @@ export function createLoop({ S, STEP, step, reset, ranking, ctx, diag, canStepDo
     // attract mode: restart the demo when too few cars survive
     if (S.attract) {
       attractT += steps * STEP;
-      if (S.cars.filter(c => c.alive).length < 3 || attractT > 70) { reset(S, 'attract'); attractT = 0; }
+      if (S.cars.filter(c => c.alive).length < 3 || attractT > 70) { reset(S, raceConfig('attract')); attractT = 0; }
     }
     // Draw the moment between the last two steps. The camera follows the interpolated car; the real state is always put back.
     interp.apply(alpha);

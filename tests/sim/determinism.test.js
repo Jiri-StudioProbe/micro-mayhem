@@ -2,20 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Sim } from '../helpers/sim.js';
 import { mulberry32, deriveSeed } from '../../src/sim/rng.js';
+import { gameplay, scripted } from '../helpers/fingerprint.js';
 
-// Everything that decides a race, as one string, with exact numbers: the same seed must give bit-identical results.
-// (Particles and rings are decoration and are checked separately.)
-const gameplay = S => JSON.stringify({
-  state: S.state, raceT: S.raceT, cd: S.cd, result: S.result && { kind: S.result.kind, place: S.result.place, time: S.result.time, kills: S.result.kills },
-  cars: S.cars.map(c => [c.x, c.y, c.a, c.vx, c.vy, c.hp, c.alive, c.weapon, c.ammo, c.prog, c.finished, c.place, c.kills, c.ai.skill, c.ai.aggr, c.ai.lane]),
-  bullets: S.bullets.map(b => [b.x, b.y, b.life]), rockets: S.rockets.map(r => [r.x, r.y, r.a]), mines: S.mines.map(m => [m.x, m.y, m.arm]),
-  crates: S.crates.map(c => c.cd)
-});
 const events = [];
 const DT = 1 / 60;
-
-// A scripted "human": the inputs are a pure function of the step number, so two runs get exactly the same inputs.
-const scripted = (S, k) => { S.input.steer = Math.sin(k / 25) * 0.8; S.input.thr = k % 400 < 330 ? 1 : 0; S.input.brk = k % 400 >= 330 ? 1 : 0; S.input.fire = k % 40 < 8 ? 1 : 0; };
 
 // Runs a race and returns a fingerprint of the whole way through, not just the end.
 function run(seed, { auto = true, steps = 60 * 70, mode = 'race', tweak } = {}) {

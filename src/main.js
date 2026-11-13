@@ -54,7 +54,9 @@ const settingsUi = createSettingsUi({ S, doc: document, audio, settings, Profile
 const lab = createLab({ S, doc: document, N, settings, Profile, settingsUi });
 const rig = createCameraRig({ S, cam, ranking, angDiff });
 const interp = createInterp({ S, angDiff });
-const game = createGame({ S, doc: document, reset, audio, hud, lab, input, rig, fx });
+// The RaceConfig of a new race: the player's current settings (the sim fills in the rest). Every race the shell starts gets one.
+const raceConfig = mode => ({ mode, assist: settings.levelAssist(), tune: { assistLane: settings.tune.assistLane, assistSpeed: settings.tune.assistSpeed } });
+const game = createGame({ S, doc: document, reset, raceConfig, audio, hud, lab, input, rig, fx });
 input.connect({ overlayOpen: hud.overlayOpen, startRace: game.startRace, toggleMute: settingsUi.toggleMute, exitLab: game.exitLab });
 lab.connect({ startLab: () => game.startRace('lab'), exitLab: game.exitLab });
 
@@ -72,4 +74,4 @@ if (/[?&]lab\b/.test(location.search)) game.startRace('lab');
 if (DEBUG) window.__mm = { S, input: S.input, Sim, diag, VERSION, get build() { return readBuild(document); }, get tune() { return settings.tune; }, get level() { return settings.level; } };
 const debugUpdate = DEBUG ? createDebugOverlay({ S, view, canvas: cv, diag, doc: document, VERSION, build: () => readBuild(document) }) : null;
 
-createLoop({ S, STEP, step, reset, ranking, ctx, diag, canStepDown, stepDown, input, game, lab, hud, rig, interp, fx, render, drawMini: minimap.draw, audio, debugUpdate }).start();
+createLoop({ S, STEP, step, reset, raceConfig, ranking, ctx, diag, canStepDown, stepDown, input, game, lab, hud, rig, interp, fx, render, drawMini: minimap.draw, audio, debugUpdate }).start();
