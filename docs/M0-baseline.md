@@ -58,3 +58,9 @@ Golden images are not comparable with M1.1 (the picture is a fraction of a step 
 ### M1.3: the race config and the rules version
 
 Judged the way M0 refactors were: against M1.2, the golden harness is **identical in all 243 states** and the driver study prints **exactly the same numbers** (diffed, 400 races per row). Beyond that, the four races that pin `SIM_VERSION` 1 (`tests/sim/simversion.test.js`) were computed on the M1.2 code through its old API and gave the same four hashes as the new code through the config API, which proves M1.3 did not change the rules. Mutation checks: 9 deliberate rule changes (acceleration, top speed, grip, a track point, crate odds, AI skill, wall damage, the number of random draws, the assist formula) were each caught by the fingerprint; 12 config-handling mistakes and 6 shell-wiring mistakes were each caught by a test.
+
+### M2.1: race records
+
+Behaviour a player can see did not change, and that is checked: the golden harness is **identical to M1.3 in all 243 states**, the driver study prints exactly the M1.3 numbers, and the pinned rules fingerprint (`SIM_VERSION` 1) still holds with the lap and assist bookkeeping added to the sim. `perf:cpu`: 5.59 to 5.87 ms against 5.60 to 5.79 ms for M1.3 in alternating pairs (differences of +0.6% to +1.4% in the later pairs; one early pair was +4.6%, which this measure's noise reaches). A saved race is about 385 bytes, so the full 500-race history is about 190 KB of the roughly 5 MB localStorage allows.
+
+Measured for the tests' bounds, over 300 autopilot races: a finished race always had exactly 3 laps of 24.5 to 29.5 s, and the time before the first crossing of the line was 0.88 to 0.93 s; races that ended early had 0 to 2 laps. Mutation checks: 35 deliberate breakages of the validation, bests, recorder, profile migration and sim bookkeeping, and 5 of the shell wiring, were each caught.

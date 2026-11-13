@@ -28,6 +28,7 @@ import { createCameraRig } from './camera.js';
 import { createInterp } from './interp.js';
 import { createGame } from './game.js';
 import { createLoop } from './loop.js';
+import { createRecorder } from './records.js';
 
 // First, so that anything that goes wrong while starting up is recorded too (shown under ?debug).
 const diag = createDiag(); watchWindow(diag, window);
@@ -56,7 +57,8 @@ const rig = createCameraRig({ S, cam, ranking, angDiff });
 const interp = createInterp({ S, angDiff });
 // The RaceConfig of a new race: the player's current settings (the sim fills in the rest). Every race the shell starts gets one.
 const raceConfig = mode => ({ mode, assist: settings.levelAssist(), tune: { assistLane: settings.tune.assistLane, assistSpeed: settings.tune.assistSpeed } });
-const game = createGame({ S, doc: document, reset, raceConfig, audio, hud, lab, input, rig, fx });
+const recorder = createRecorder({ Profile, appVersion: VERSION, getLevel: () => settings.level });
+const game = createGame({ S, doc: document, reset, raceConfig, recorder, diag, audio, hud, lab, input, rig, fx });
 input.connect({ overlayOpen: hud.overlayOpen, startRace: game.startRace, toggleMute: settingsUi.toggleMute, exitLab: game.exitLab });
 lab.connect({ startLab: () => game.startRace('lab'), exitLab: game.exitLab });
 

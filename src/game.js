@@ -3,10 +3,11 @@
 // Moved verbatim out of src/main.js in M0.7.
 import { ord } from './ui/format.js';
 
-export function createGame({ S, doc, reset, raceConfig, audio, hud, lab, input, rig, fx }) {
+export function createGame({ S, doc, reset, raceConfig, recorder, diag, audio, hud, lab, input, rig, fx }) {
   const { init: initAudio, tone, noise, vol } = audio;
   const { toast } = hud;
   let overTimer = 0;
+  let lastRace = null;   // what recording the latest race said: { record, newBestTime, newBestLap, previous } (null for the lab and the demo)
 
   function startRace(mode) {
     if (typeof mode !== 'string') mode = 'race';   // used directly as a click/key handler
@@ -55,10 +56,13 @@ export function createGame({ S, doc, reset, raceConfig, audio, hud, lab, input, 
           else toast(k ? k.name + ' WRECKED ' + v.name : v.name + ' CRASHED OUT');
           break; }
         case 'finish': if (!e.car.isPlayer && !S.attract) toast(e.car.name + ' FINISHED ' + ord(e.car.place)); break;
-        case 'over': clearTimeout(overTimer); overTimer = setTimeout(hud.showEnd, e.kind === 'wrecked' ? 500 : 1100); break;
+        case 'over':
+          // Every race that ends is saved to the history. A failure here must never stop the results screen from appearing.
+          try { lastRace = recorder.recordRace(S); } catch (err) { lastRace = null; diag.record('records', err); }
+          clearTimeout(overTimer); overTimer = setTimeout(hud.showEnd, e.kind === 'wrecked' ? 500 : 1100); break;
       }
     }
     S.events.length = 0;
   }
-  return { startRace, exitLab, handleEvents };
+  return { startRace, exitLab, handleEvents, lastRace: () => lastRace };
 }

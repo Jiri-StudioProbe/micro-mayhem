@@ -55,7 +55,8 @@ The game is an ES module graph. `index.html` loads `src/main.js`, which imports 
 | `src/render/minimap.js` | `createMinimap({ canvas, S, T, N })` returns `{ draw }` | The outline is drawn once, offscreen |
 | `src/render/scene.js` | `createScene({ S, ctx, view, cam, fx, draw, props, T, N, HALF_W, reducedMotion })` returns `{ render }` | Everything drawn on the main canvas, back to front. `fx.hurtFlash` is the one effect the shell controls |
 | `src/levels.js` | `LEVELS`, `TUNE_DEFS`, `PRESET_VERSION` and `createSettings(profile)` (the live level and tune values) | Pure data plus logic; unit-tested; tolerant of damaged saved data |
-| `src/profile.js` | `createProfile(storage)`: the one versioned JSON document in localStorage | The storage is passed in, so it runs in Node tests; `browserStorage()` returns localStorage or null |
+| `src/profile.js` | `createProfile(storage)`: the one versioned JSON document in localStorage (version 2: `settings`, `races`, `bests`, `updatedAt`) | The storage is passed in, so it runs in Node tests; `browserStorage()` returns localStorage or null. Loading cleans the history and bests (damaged records are dropped, the rest kept), migrates older versions, and never downgrades a document written by a newer game |
+| `src/records.js` | `makeRecord`, `cleanRecord`, `cleanRaces`, `updateBests`, `addRace`, `createRecorder({ Profile, appVersion, getLevel })` | Race records (`{ id, ts, appVersion, simVersion, track, laps, level, config, result }`, about 385 bytes each) and personal bests per `track/level/assist` (`assist`, `manual`; a race where assist was toggled counts for none). The history keeps the latest 500 races; bests are kept for ever. **Everything read from storage goes through `cleanRecord`**; unknown fields of a record are kept. `game.js` records every race that ends (not the lab or the demo) |
 | `src/audio.js` | `createAudio({ getPlayer, doc, AudioContextClass })`: tones, noise, engine hum, mute | Every method is safe at any time (no gesture yet, muted, no WebAudio) |
 | `src/diag.js` | `createDiag()`: a small in-memory log of errors (frame failures, uncaught errors, rejected promises) | Shown under `?debug`; remote reporting comes in M3 |
 | `src/version.js` | `VERSION` (bumped by hand, a test keeps it equal to `package.json`), `readBuild()` (the deployed commit, from the page's `<meta name="build">`) and `versionLabel()` | Shown at the bottom of the start card (`#ver`, e.g. `v1.4.0 · build 16e20f6`, or `dev build` when run from a checkout) and in the `?debug` overlay. **To cut a release, bump `VERSION` and `package.json` (and `package-lock.json`) together** |
@@ -84,6 +85,8 @@ Page structure above the module script:
 | `endRace(S, kind)` | `'finish'`, `'wrecked'` or `'last'`. Fills `S.result` |
 
 ### Sim to shell communication
+
+The player's lap times (`S.laps`) and whether assist was toggled during the race (`S.assistChanged`) are tracked by the sim as bookkeeping (they feed nothing back, so they are not rules) and end up in `S.result` with `bestLap` and `wallTouches`.
 
 The sim pushes plain objects onto `S.events`. The shell drains and clears the array every frame in `handleEvents()` (`src/game.js`). Event types:
 
@@ -203,7 +206,7 @@ The renderer is tested in Node against a **strict fake canvas** (`tests/helpers/
 - **Props are decorative.** The felt-table clutter (blocks, planks, discs) sits off the track and has no collision, so it cannot be used as an obstacle yet.
 - **AI is simple.** It follows a lane offset, brakes to `vsafe`, and aims by lining up in front of a target. It does not dodge incoming fire or plan overtakes.
 - **Difficulty is one fixed setting.** The player's top speed is 372. AI cars cap at 366 times their skill (0.84 to 0.96, randomised per race), so even the best AI car is slower than a clean human lap.
-- **Single track, single mode.** There is no pause, no best-time storage, no track select and no difficulty select.
+- **Single track, single mode.** There is no pause, no track select and no difficulty select. Every race is saved and bests are kept, but there is no screen to see them yet (M2.2 to M2.4).
 - **Rendering cost.** `nearest()` full-scans when the hint is lost, and prop placement runs an O(props x track) check at startup. Both are fine at current sizes.
 - **Accessibility.** Screen shake is disabled under `prefers-reduced-motion`. There is no colour-blind mode, and the AI cars are told apart only by colour and name toasts.
 

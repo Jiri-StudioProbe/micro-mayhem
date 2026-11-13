@@ -161,6 +161,7 @@ function reset(S, config, seed) {
   S.rng = mulberry32(deriveSeed(S.seed, 1)); S.fxRng = mulberry32(deriveSeed(S.seed, 2));
   S.cars.length = S.bullets.length = S.rockets.length = S.mines.length = S.parts.length = S.rings.length = S.crates.length = 0;
   S.finishOrder.length = 0; S.result = null; S.deadT = 0; S.raceT = 0; S.shake = 0; S.touches = 0;
+  S.laps = []; S.lapNo = -1; S.lapT0 = null; S.assistChanged = false;   // the player's lap times, and whether assist was toggled during the race (bookkeeping for records; it feeds nothing back)
   S.lab = mode === 'lab';   // steering lab: the player alone, no crates, no damage, no end
   const playerSlot = 3;
   const slots = [0, 1, 2, 4, 5]; let si = 0;
@@ -378,6 +379,7 @@ function ranking(S) {
 function step(S, dt) {
   dt = Math.min(dt, 1 / 30);
   S.t += dt;
+  if (!!S.assist !== S.config.assist) S.assistChanged = true;
   S.shake = Math.max(0, S.shake - dt * 2.2);
   const P = S.player;
 
@@ -407,6 +409,7 @@ function step(S, dt) {
     } else aiControl(S, c, dt);
     drive(c, dt);
     walls(S, c, dt, true);
+    if (c.isPlayer) lapTick(S, c);
     if (c.fire) tryFire(S, c);
     if (c.hp < 45 && S.fxRng() < dt * 9) smoke(S, c.x, c.y, 9, c.hp < 25);
     if (c.hp < 24 && S.fxRng() < dt * 14) flame(S, c.x, c.y, 8);
@@ -522,11 +525,20 @@ function step(S, dt) {
   }
 }
 
+// The player's lap times: prog counts track samples, so floor(prog / N) is the lap index (-1 = still behind the start line). A lap is timed from
+// crossing the line to crossing it again; reversing back over the line voids the lap in progress (the same rule as the Steering Lab's timer).
+function lapTick(S, c) {
+  const lapNo = Math.floor(c.prog / N);
+  if (lapNo > S.lapNo) { if (S.lapT0 !== null) S.laps.push(S.raceT - S.lapT0); S.lapT0 = S.raceT; S.lapNo = lapNo; }
+  else if (lapNo < S.lapNo) { S.lapNo = lapNo; S.lapT0 = null; }
+}
+
 function endRace(S, kind) {
   if (S.state !== 'race') return;
   const rank = ranking(S), P = S.player;
   S.state = 'over';
-  S.result = { kind, place: rank.indexOf(P) + 1, kills: P.kills, time: kind === 'finish' ? P.finishT : S.raceT, total: S.cars.length };
+  S.result = { kind, place: rank.indexOf(P) + 1, kills: P.kills, time: kind === 'finish' ? P.finishT : S.raceT, total: S.cars.length,
+    laps: S.laps.slice(), bestLap: S.laps.length ? Math.min(...S.laps) : null, wallTouches: S.touches, assistChanged: S.assistChanged };
   if (kind === 'last') S.result.place = 1;
   if (kind === 'finish') S.result.place = P.place;
   P.auto = true;

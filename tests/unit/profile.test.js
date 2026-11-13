@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createProfile, PROFILE_KEY } from '../../src/profile.js';
 import { memoryStorage, throwingStorage } from '../helpers/storage.js';
 
-const FRESH = { version: 1, settings: { level: 'veteran', presets: {} } };
+const FRESH = { version: 2, settings: { level: 'veteran', presets: {} }, races: [], bests: {} };
 
 test('a fresh profile has the defaults and writes nothing until saved', () => {
   const st = memoryStorage();
@@ -12,7 +12,11 @@ test('a fresh profile has the defaults and writes nothing until saved', () => {
   assert.equal(st.writes, 0);
   p.save();
   assert.equal(st.writes, 1);
-  assert.deepEqual(JSON.parse(st.m.get(PROFILE_KEY)), FRESH);
+  const saved = JSON.parse(st.m.get(PROFILE_KEY));
+  assert.equal(typeof saved.updatedAt, 'string', 'every save stamps updatedAt (the cloud sync will compare it)');
+  assert.ok(Math.abs(Date.parse(saved.updatedAt) - Date.now()) < 5000);
+  delete saved.updatedAt;
+  assert.deepEqual(saved, FRESH);
 });
 
 test('what is saved is what is loaded next time', () => {
@@ -41,13 +45,14 @@ test('missing parts of a saved profile are filled with defaults', () => {
   const p = createProfile(memoryStorage({ [PROFILE_KEY]: '{"settings":{"level":"rookie"}}' }));
   assert.equal(p.data.settings.level, 'rookie');
   assert.deepEqual(p.data.settings.presets, {});
-  assert.equal(p.data.version, 1);
+  assert.equal(p.data.version, 2, 'a profile from before M2 is migrated');
 });
 
 for (const bad of ['{not json', 'null', '"text"', '[1,2]', '42', '', '{"version":1,"settings":"x"}', '{"settings":null}', '{"settings":[1]}']) {
   test(`a corrupt saved profile is ignored, never an error: ${JSON.stringify(bad)}`, () => {
     const p = createProfile(memoryStorage({ [PROFILE_KEY]: bad }));
-    assert.equal(p.data.version, 1);
+    assert.equal(p.data.version, 2);
+    assert.deepEqual([p.data.races, p.data.bests], [[], {}]);
     assert.equal(typeof p.data.settings.level, 'string');
     const presets = p.data.settings.presets;
     assert.ok(presets !== null && typeof presets === 'object' && !Array.isArray(presets), 'presets is a plain object');
