@@ -20,6 +20,8 @@ test('staging ships only what players need, stamped with the commit', () => {
   for (const never of ['package.json', 'package-lock.json', 'node_modules', 'tests', 'tools', 'docs', 'CLAUDE.md', '.git', '.github']) {
     assert.ok(!files.includes(never), `${never} must not be published`);
   }
+  assert.ok(files.includes('src'), 'the game modules ship');
+  assert.ok(fs.existsSync(path.join(out, 'src', 'sim', 'sim.js')), 'the simulation module ships');
   assert.ok(files.includes('fonts'), 'fonts are hosted with the game');
   const fonts = fs.readdirSync(path.join(out, 'fonts'));
   for (const f of ['bungee-latin-400-normal.woff2', 'barlow-condensed-latin-500-normal.woff2', 'barlow-condensed-latin-600-normal.woff2', 'barlow-condensed-latin-700-normal.woff2', 'LICENSES.txt']) {

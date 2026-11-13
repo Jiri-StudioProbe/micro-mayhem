@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadSim } from '../helpers/sim.js';
+import { Sim } from '../helpers/sim.js';
 
-const Sim = loadSim();
 const finite = S => S.cars.every(c => [c.x, c.y, c.a, c.vx, c.vy, c.hp].every(Number.isFinite));
 
 test('autopilot races end, with no NaN, within a plausible time', () => {

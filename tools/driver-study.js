@@ -1,9 +1,9 @@
 // Headless driver study: how fast can different "human models" lap the track, with and without the driving assist?
 // Usage: node tools/driver-study.js [runs]
-import { loadSim } from '../tests/helpers/sim.js';
+import { Sim } from '../tests/helpers/sim.js';
 import { makeDrivers, runRace } from '../tests/helpers/drivers.js';
 
-const Sim = loadSim(), drivers = makeDrivers(Sim);
+const drivers = makeDrivers(Sim);
 const RUNS = Number(process.argv[2]) || 12;
 const avg = a => (a.length ? +(a.reduce((x, y) => x + y, 0) / a.length).toFixed(1) : null);
 

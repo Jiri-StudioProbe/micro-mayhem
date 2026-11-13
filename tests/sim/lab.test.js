@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadSim } from '../helpers/sim.js';
+import { Sim } from '../helpers/sim.js';
 
-const Sim = loadSim();
 
 test('lab mode: the player alone, nothing to pick up, no way to lose or win', () => {
   const S = Sim.create(); Sim.reset(S, 'lab');

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { loadSim } from '../helpers/sim.js';
+import { Sim } from '../helpers/sim.js';
 
-const { T, N, HALF_W } = loadSim();
+const { T, N, HALF_W } = Sim;
 
 test('track is a closed loop with sane geometry', () => {
   assert.ok(N > 300, `track has ${N} samples`);

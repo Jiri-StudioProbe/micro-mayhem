@@ -1,9 +1,8 @@
 import test, { before } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadSim } from '../helpers/sim.js';
+import { Sim } from '../helpers/sim.js';
 import { makeDrivers, runRace } from '../helpers/drivers.js';
 
-const Sim = loadSim();
 const drivers = makeDrivers(Sim);
 const avg = a => a.reduce((x, y) => x + y, 0) / a.length;
 const RUNS = Number(process.env.ASSIST_RUNS || 40);
