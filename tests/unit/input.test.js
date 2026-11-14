@@ -146,3 +146,37 @@ test('a dead zone of 0 (the slider allows it) never makes the steering NaN, incl
   assert.equal(t.S.input.steer, 0, 'and back to the centre it recovers: steering never got stuck on NaN');
   assert.ok(Number.isFinite(t.S.input.steer));
 });
+
+// An element that answers closest() like a button in the page: `ids` are the ids it is inside of.
+const btn = (...ids) => ({ closest: sel => (sel === 'button' ? {} : sel === '#start, #again' ? (ids.some(i => i === 'start' || i === 'again') ? {} : null) : null) });
+
+test('Enter on a start screen starts a race, but a focused button other than START or RACE AGAIN is pressed instead (it is not hijacked)', () => {
+  const t = setup({ overlay: true });
+  assert.equal(t.win.fire('keydown', { code: 'Enter', target: btn('recordsBtn') }).prevented, undefined); assert.deepEqual(t.calls, [], 'no race started');
+  assert.equal(t.win.fire('keydown', { code: 'Space', target: btn('labBtn') }).prevented, undefined); assert.deepEqual(t.calls, []);
+  assert.equal(t.win.fire('keydown', { code: 'Enter', target: btn('start') }).prevented, true); assert.deepEqual(t.calls, ['start']);
+  t.calls.length = 0; t.win.fire('keydown', { code: 'Enter', target: btn('again') }); assert.deepEqual(t.calls, ['start']);
+  t.calls.length = 0; t.win.fire('keydown', { code: 'Enter', target: {} }); assert.deepEqual(t.calls, ['start'], 'with nothing focused it starts');
+});
+
+test('Escape closes a records screen first; only when there is none does it leave the lab', () => {
+  const t = setup(); const log = [];
+  let open = true;
+  const actions = { overlayOpen: () => false, startRace() {}, toggleMute() {}, exitLab: () => log.push('exit'), back: () => { log.push('back'); const was = open; open = false; return was; }, browsing: () => open };
+  const dom = makeDom(); const S = { input: { steer: 0, thr: 0, brk: 0, fire: 0 }, player: { vx: 0, vy: 0 }, tune: {}, lab: true };
+  const inp = createInput({ S, tune: { ...TUNE }, initAudio() {}, win: dom.win, doc: dom.doc }); inp.connect(actions);
+  const esc = () => dom.win.fire('keydown', { code: 'Escape' });
+  assert.equal(esc().prevented, true); assert.deepEqual(log, ['back']);
+  esc(); assert.deepEqual(log, ['back', 'back', 'exit']); void t;
+});
+
+test('while a records screen is open the game keys are left alone (Space presses the focused button; it does not fire)', () => {
+  const dom = makeDom(); const S = { input: { steer: 0, thr: 0, brk: 0, fire: 0 }, player: { vx: 0, vy: 0 }, tune: {}, lab: false };
+  let browsing = true;
+  const inp = createInput({ S, tune: { ...TUNE }, initAudio() {}, win: dom.win, doc: dom.doc });
+  inp.connect({ overlayOpen: () => false, startRace() {}, toggleMute() {}, exitLab() {}, back: () => false, browsing: () => browsing });
+  assert.equal(dom.win.fire('keydown', { code: 'Space' }).prevented, undefined); inp.readInput(1 / 60); assert.equal(S.input.fire, 0);
+  assert.equal(dom.win.fire('keydown', { code: 'ArrowUp' }).prevented, undefined); inp.readInput(1 / 60); assert.equal(S.input.thr, 0);
+  browsing = false;
+  assert.equal(dom.win.fire('keydown', { code: 'Space' }).prevented, true); inp.readInput(1 / 60); assert.equal(S.input.fire, 1, 'in a race Space fires again');
+});

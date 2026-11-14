@@ -21,6 +21,8 @@ import { buildProps } from './render/world.js';
 import { createMinimap } from './render/minimap.js';
 import { createScene } from './render/scene.js';
 import { createHud } from './ui/hud.js';
+import { createRouter } from './ui/router.js';
+import { createHistoryUi } from './ui/historyui.js';
 import { createSettingsUi } from './ui/settings.js';
 import { createLab } from './ui/lab.js';
 import { createDebugOverlay } from './ui/debug.js';
@@ -50,8 +52,14 @@ const settings = createSettings(Profile);
 const fx = { hurtFlash: 0 };   // screen effects the shell controls; the renderer reads them
 
 const input = createInput({ S, tune: settings.tune, initAudio: audio.init });
-const hud = createHud({ S, doc: document, N, LAPS, WEAP, ranking, stickRelease: input.stickRelease });
+let historyUi;   // (made below, once the profile exists; the router only asks it for a focus target when a screen is shown)
+const router = createRouter({ win: window, screens: {
+  menu: { el: $('menu') }, end: { el: $('end'), focus: () => $('again') },
+  history: { el: $('history'), focus: fresh => historyUi.focusFor('history', fresh) }, detail: { el: $('detail'), focus: fresh => historyUi.focusFor('detail', fresh) } } });
+router.go('menu');
+const hud = createHud({ S, doc: document, router, N, LAPS, WEAP, ranking, stickRelease: input.stickRelease });
 const settingsUi = createSettingsUi({ S, doc: document, audio, settings, Profile });
+historyUi = createHistoryUi({ doc: document, router, Profile });
 const lab = createLab({ S, doc: document, N, settings, Profile, settingsUi });
 const rig = createCameraRig({ S, cam, ranking, angDiff });
 const interp = createInterp({ S, angDiff });
@@ -59,7 +67,7 @@ const interp = createInterp({ S, angDiff });
 const raceConfig = mode => ({ mode, assist: settings.levelAssist(), tune: { assistLane: settings.tune.assistLane, assistSpeed: settings.tune.assistSpeed } });
 const recorder = createRecorder({ Profile, appVersion: VERSION, getLevel: () => settings.level });
 const game = createGame({ S, doc: document, reset, raceConfig, recorder, diag, audio, hud, lab, input, rig, fx });
-input.connect({ overlayOpen: hud.overlayOpen, startRace: game.startRace, toggleMute: settingsUi.toggleMute, exitLab: game.exitLab });
+input.connect({ overlayOpen: hud.overlayOpen, startRace: game.startRace, toggleMute: settingsUi.toggleMute, exitLab: game.exitLab, back: () => router.back(), browsing: () => router.canGoBack() });
 lab.connect({ startLab: () => game.startRace('lab'), exitLab: game.exitLab });
 
 /* ---------- renderer (src/render/) ---------- */

@@ -65,14 +65,21 @@ export function createInput({ S, tune, initAudio, win = window, doc = document }
   if (win.matchMedia && win.matchMedia('(pointer: coarse)').matches) padEl.classList.add('avail');
   win.addEventListener('touchstart', () => padEl.classList.add('avail'), { once: true, passive: true });
 
-  // The keyboard. actions = { overlayOpen(), startRace(), toggleMute(), exitLab() }; S.lab is read live.
+  // The keyboard. actions = { overlayOpen(), startRace(), toggleMute(), exitLab(), back(), browsing() }; S.lab is read live.
+  // back() closes a records screen and says whether it did; browsing() is true while one is open.
   function connect(actions) {
     win.addEventListener('keydown', e => {
       const a = KEYMAP[e.code];
-      if (e.code === 'Enter' || (e.code === 'Space' && actions.overlayOpen())) { if (actions.overlayOpen()) { e.preventDefault(); actions.startRace(); return; } }
+      // Enter (or Space) on a start screen starts a race, unless a button other than the main one has the focus: then it presses that button.
+      const onOtherButton = e.target && e.target.closest && e.target.closest('button') && !e.target.closest('#start, #again');
+      if (!onOtherButton && (e.code === 'Enter' || (e.code === 'Space' && actions.overlayOpen()))) { if (actions.overlayOpen()) { e.preventDefault(); actions.startRace(); return; } }
       if (e.code === 'KeyM') { actions.toggleMute(); return; }
-      if (e.code === 'Escape' && S.lab) { actions.exitLab(); return; }
-      if (a) { e.preventDefault(); keys.add(a); initAudio(); }
+      if (e.code === 'Escape') {
+        if (actions.back && actions.back()) { e.preventDefault(); return; }   // closes a records screen
+        if (S.lab) { actions.exitLab(); return; }
+      }
+      // On any screen (start, results, records, a race's details) the game keys are the page's: Space presses the focused button, as usual.
+      if (a && !actions.overlayOpen() && !(actions.browsing && actions.browsing())) { e.preventDefault(); keys.add(a); initAudio(); }
     });
     win.addEventListener('keyup', e => { const a = KEYMAP[e.code]; if (a) keys.delete(a); });
     win.addEventListener('blur', () => { keys.clear(); touch.clear(); stickRelease(); });

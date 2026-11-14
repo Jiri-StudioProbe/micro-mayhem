@@ -17,6 +17,8 @@ import crypto from 'node:crypto';
 import { serve } from '../tests/helpers/server.js';
 import { launch, PHONE, DESKTOP, runFrames } from '../tests/helpers/browser.js';
 import { ROOT } from '../tests/helpers/sim.js';
+import { goodRecord, finishRecord } from '../tests/helpers/records.js';
+import { updateBests } from '../src/records.js';
 
 const PORTRAIT = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true };
 
@@ -33,12 +35,16 @@ const DETERMINISM = () => {
 const DOM_STATE = () => {
   const ids = ['hud', 'menu', 'end', 'pad', 'tune', 'cd', 'pos', 'lap', 'hp', 'hpn', 'wname', 'wammo', 'wpn', 'labstats', 'lsLast', 'lsBest', 'lsHits',
     'snd', 'assistHud', 'assistMenu', 'assistTune', 'levelBlurb', 'tuneBtn', 'labExit', 'tuneOut', 'stick', 'knob', 'endKick', 'endHead', 'stPlace', 'stKills', 'stTime', 'stTimeLab',
-    'bests', 'bsTimeRace', 'bsTimeBest', 'bsTimeTag', 'bsLapRace', 'bsLapBest', 'bsLapTag', 'bsNote'];
+    'bests', 'bsTimeRace', 'bsTimeBest', 'bsTimeTag', 'bsLapRace', 'bsLapBest', 'bsLapTag', 'bsNote',
+    'history', 'detail', 'histBoards', 'histEmpty', 'histMore', 'histBack', 'detBack', 'detKick', 'detTitle', 'detTech', 'recordsBtn', 'endRecords'];
   const o = {};
   for (const id of ids) {
     const e = document.getElementById(id);
     o[id] = e ? { hidden: e.hidden, cls: e.className, text: (e.textContent || '').trim().slice(0, 300), style: e.getAttribute('style') || '', pressed: e.getAttribute('aria-pressed'), value: e.value === undefined ? null : e.value } : null;
   }
+  o.hrows = [...document.querySelectorAll('.hrow')].map(e => e.className + '|' + e.textContent);
+  o.hboards = [...document.querySelectorAll('.hboard')].map(e => e.textContent);
+  o.detRows = [...document.querySelectorAll('#detRows > *')].map(e => e.textContent);
   o.levels = [...document.querySelectorAll('[data-level]')].map(b => b.getAttribute('aria-pressed') + ':' + b.className);
   o.sliders = [...document.querySelectorAll('.trow input')].map(i => i.id + '=' + i.value);
   o.sliderLabels = [...document.querySelectorAll('.trow b')].map(b => b.textContent);
@@ -47,6 +53,15 @@ const DOM_STATE = () => {
   o.body = document.body.className;
   return JSON.stringify(o);
 };
+
+// A saved history with fixed dates, for the records screens (made from real simulated races, so the records are the ones the game writes).
+const HISTORY = (() => {
+  const races = [finishRecord('a1', 83.4, [28.1, 27.3, 27.9]), goodRecord({ kind: 'wrecked' }), finishRecord('a2', 90.2, [30.5, 29.9, 29.8], { level: 'rookie', assist: true }), finishRecord('a3', 80.9, [27.2, 27.1, 26.5]), goodRecord({ kind: 'last' })];
+  races[1].id = 'w1'; races[4].id = 'l1'; races[2].result.place = 4; races[3].result.place = 1;
+  races.forEach((r, i) => { r.ts = new Date(Date.UTC(2026, 10, 12, 18, 0, 0) + i * 5 * 3600e3).toISOString(); });
+  const bests = {}; for (const r of races) updateBests(bests, r);
+  return { version: 2, settings: { level: 'veteran', presets: {} }, races, bests };
+})();
 
 // Entities of every kind, placed relative to the player, so the draw code for each one is exercised.
 const EFFECTS = () => {
@@ -111,7 +126,7 @@ const SCENARIOS = [
   } },
   { name: 'ui-touch-controls', device: PHONE, url: '?debug', run: async (p, shot) => {
     const cdp = await p.context().newCDPSession(p);
-    const touch = (type, pts) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts });
+    const touch = async (type, pts) => { await cdp.send('Input.dispatchTouchEvent', { type, touchPoints: pts }); await p.waitForTimeout(80); };
     await runFrames(p, 10); await p.tap('#start'); await runFrames(p, 250);
     await touch('touchStart', [{ x: 150, y: 300, id: 1 }]); await shot(30);
     await touch('touchMove', [{ x: 150 + 14, y: 300, id: 1 }]); await shot(20);
@@ -139,14 +154,23 @@ const SCENARIOS = [
     await shot(20); await p.evaluate(() => { __mm.S.events.push({ t: 'hurt', amt: 40 }); }); await shot(1);
     await p.click('#start'); await shot(1); await shot(3);
   } },
-  // The records block of the results screen: a first finish (new bests), a slower one, a wreck, and the same after the page is reloaded with the history stored.
+  // The records block of the results screen: a first finish (new bests), then a slower one.
   { name: 'ui-end-records', device: PHONE, url: '?debug', run: async (p, shot) => {
     const finish = (time, laps) => p.evaluate(([time, laps]) => { const S = __mm.S; S.laps.length = 0; S.laps.push(...laps); S.raceT = time - __mm.Sim.STEP; S.player.prog = __mm.Sim.LAPS * __mm.Sim.N; }, [time, laps]);
-    const race = async force => { await p.tap('#start'); await runFrames(p, 260); await force(); await shot(5); await p.waitForTimeout(1600); await shot(1); };
-    await runFrames(p, 20);
-    await race(() => finish(83.4, [28.1, 27.3, 27.9]));
-    await p.tap('#again'); await runFrames(p, 260); await finish(85.2, [28.6, 28.1, 27.4]); await shot(5); await p.waitForTimeout(1600); await shot(1);
-    await p.tap('#again'); await runFrames(p, 260); await p.evaluate(() => { __mm.S.laps.push(26.5); __mm.S.player.alive = false; __mm.S.player.hp = 0; }); await shot(130); await p.waitForTimeout(1600); await shot(1);
+    // The results screen appears after a delay on the real clock, so a frame is only captured once that delay has passed.
+    const ends = async frames => { await runFrames(p, frames); await p.waitForTimeout(1600); await shot(1); };
+    await runFrames(p, 20); await p.tap('#start'); await runFrames(p, 260);
+    await finish(83.4, [28.1, 27.3, 27.9]); await ends(5);
+    await p.tap('#again'); await runFrames(p, 260); await finish(85.2, [28.6, 28.1, 27.4]); await ends(5);
+    // (A wreck was a third race here, but the frame drawn after it came out in one of two ways, about half the runs each: the same drawing commands, the
+    // same simulation state, a few antialiased pixels on three crates differing. It was not the random stream, the fonts, the audio, the GPU or the camera.
+    // Wrecks are drawn by ui-end-wrecked, and their records are tested elsewhere.)
+  } },
+  // The records screens: the start menu's RECORDS button, the list, one race in full, and back again (a fixed history, local time pinned to UTC).
+  { name: 'ui-records-screens', needs: '#recordsBtn', device: { ...PHONE, locale: 'en-GB', timezoneId: 'UTC' }, profile: HISTORY, url: '?debug', run: async (p, shot) => {
+    await shot(3); await p.tap('#recordsBtn'); await shot(2);
+    await p.tap('.hrow >> nth=1'); await shot(2); await p.tap('#detBack'); await shot(2);
+    await p.keyboard.press('Escape'); await shot(2); await p.tap('#recordsBtn'); await p.tap('#histBack'); await shot(2);
   } },
   { name: 'ui-lab-exit-by-escape', device: DESKTOP, url: '?lab&debug', run: async (p, shot) => { await shot(30); await p.keyboard.press('Escape'); await shot(5); await p.keyboard.press('Enter'); await shot(5); } },
   ...[['finish', () => { __mm.S.player.prog = __mm.Sim.LAPS * __mm.Sim.N; }],
@@ -163,14 +187,22 @@ const SCENARIOS = [
 async function capture(outDir, root) {
   const srv = await serve(root), browser = await launch(), manifest = {};
   fs.rmSync(outDir, { recursive: true, force: true }); fs.mkdirSync(outDir, { recursive: true });
+  const only = process.env.GOLDEN_ONLY ? process.env.GOLDEN_ONLY.split(',') : null;   // for investigating one scenario: GOLDEN_ONLY=name node tools/golden.mjs capture ...
   for (const sc of SCENARIOS) {
+    if (only && !only.includes(sc.name)) continue;
     const ctx = await browser.newContext(sc.device);
     await ctx.addInitScript(DETERMINISM);
+    if (sc.profile) await ctx.addInitScript(prof => { if (!localStorage.getItem('mm:profile')) localStorage.setItem('mm:profile', JSON.stringify(prof)); }, sc.profile);
     const errors = [];
     const page = await ctx.newPage();
+    // A tap or click is handed to the page by the browser a moment after the call returns, and the virtual frames the script runs next must not
+    // overtake it: after each real input the script waits for it to arrive.
+    for (const m of ['tap', 'click']) { const raw = page[m].bind(page); page[m] = async (...a) => { const r = await raw(...a); await page.waitForTimeout(120); return r; }; }
     page.on('pageerror', e => errors.push(e.message));
     await page.goto(srv.url + '/index.html' + sc.url);
     await page.waitForFunction(() => window.__mm && window.__cb);
+    // A scenario for a feature the code being captured does not have yet (the code may be an older commit) is skipped, and compare reports it as new.
+    if (sc.needs && !(await page.$(sc.needs))) { console.log(`  (skipped ${sc.name}: no ${sc.needs} in this code)`); await ctx.close(); continue; }
     let n = 0, frames = 0;
     const shot = async advance => {
       const r = await runFrames(page, advance); frames += advance;
@@ -202,6 +234,7 @@ function compare(a, b) {
   const A = JSON.parse(fs.readFileSync(path.join(a, 'manifest.json'))), B = JSON.parse(fs.readFileSync(path.join(b, 'manifest.json')));
   let total = 0, bad = 0;
   for (const sc of new Set([...Object.keys(A), ...Object.keys(B)])) {
+    if (!A[sc] || !B[sc]) { console.log(`  scenario ${sc} exists only in ${A[sc] ? 'the first' : 'the second'} capture (not compared)`); continue; }
     for (const fr of new Set([...Object.keys(A[sc] || {}), ...Object.keys(B[sc] || {})])) {
       for (const key of ['c', 'mini', 'dom']) {
         total++;

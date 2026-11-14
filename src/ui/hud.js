@@ -2,37 +2,35 @@
 // It reads the simulation and writes only to the DOM, and only when a value changed. The steering lab's own readout is in lab.js.
 // Moved verbatim out of src/main.js in M0.7.
 import { ord, fmtTime } from './format.js';
-import { describeBests } from './results.js';
+import { describeBests, describeResult } from './results.js';
 import { clamp } from '../util.js';
 
-export function createHud({ S, doc, N, LAPS, WEAP, ranking, stickRelease }) {
+export function createHud({ S, doc, router, N, LAPS, WEAP, ranking, stickRelease }) {
   const $ = id => doc.getElementById(id);
-  const hud = $('hud'), menu = $('menu'), endEl = $('end'), toasts = $('toasts'), cdEl = $('cd');
+  const hud = $('hud'), toasts = $('toasts'), cdEl = $('cd');
   const posEl = $('pos'), lapEl = $('lap'), hpEl = $('hp'), hpn = $('hpn'), wname = $('wname'), wammo = $('wammo'), wpn = $('wpn');
   const padEl = $('pad');
-  const overlayOpen = () => !menu.hidden || !endEl.hidden;
+  // True on the screens a key press starts a race from (the start menu and the results), not on the ones you browse (records, a race's details).
+  const overlayOpen = () => router.current() === 'menu' || router.current() === 'end';
   const visible = () => !hud.hidden;
   function toast(text, cls) {
     while (toasts.children.length > 3) toasts.firstChild.remove();
     const d = doc.createElement('div'); d.className = 'toast' + (cls ? ' ' + cls : ''); d.textContent = text;
     d.addEventListener('animationend', () => d.remove()); toasts.appendChild(d);
   }
-  // The three screens: a race (HUD and touch controls shown), the start menu, and the results.
-  function showRace() { menu.hidden = true; endEl.hidden = true; hud.hidden = false; padEl.classList.add('live'); toasts.textContent = ''; }
-  function showMenu() { hud.hidden = true; padEl.classList.remove('live'); endEl.hidden = true; menu.hidden = false; }
+  // A race (HUD and touch controls shown, no screen), the start menu, and the results; the router shows and hides the screens.
+  function showRace() { router.clear(); hud.hidden = false; padEl.classList.add('live'); toasts.textContent = ''; }
+  function showMenu() { hud.hidden = true; padEl.classList.remove('live'); router.go('menu'); }
   // `info` is what recording the race returned (game.lastRace()): it says which records this race broke.
   function showEnd(info) {
     const r = S.result; if (!r) return;
-    let kick, head;
-    if (r.kind === 'finish') { kick = 'CHEQUERED FLAG'; head = r.place === 1 ? 'YOU WIN' : r.place <= 3 ? 'PODIUM' : 'CROSSED THE LINE'; }
-    else if (r.kind === 'last') { kick = 'NOBODY LEFT TO RACE'; head = 'LAST CAR STANDING'; }
-    else { kick = 'HULL AT ZERO'; head = 'WRECKED'; }
-    $('endKick').textContent = kick; $('endHead').textContent = head;
-    $('stPlace').textContent = r.kind === 'wrecked' ? '—' : ord(r.place);
+    const d = describeResult(r);
+    $('endKick').textContent = d.kick; $('endHead').textContent = d.head;
+    $('stPlace').textContent = d.place;
     $('stKills').textContent = r.kills; $('stTime').textContent = fmtTime(r.time);
-    $('stTimeLab').textContent = r.kind === 'finish' ? 'RACE TIME' : 'SURVIVED';
+    $('stTimeLab').textContent = d.timeLabel;
     showBests(describeBests(info));
-    hud.hidden = true; padEl.classList.remove('live'); stickRelease(); endEl.hidden = false; $('again').focus({ preventScroll: true });
+    hud.hidden = true; padEl.classList.remove('live'); stickRelease(); router.go('end');   // (the router focuses RACE AGAIN)
   }
   function showBests(d) {
     const box = $('bests');

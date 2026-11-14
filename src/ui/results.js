@@ -3,7 +3,7 @@
 //                       or { note, rows: [{ label, race, best, tag }] }
 // race / best are display strings ("1:23.41", or an em dash when there is none); tag is null, { text: 'NEW BEST', kind: 'new' }, or
 // { text: '+0.82 s', kind: 'slower' } (how much slower than your best), { text: 'TIED BEST', kind: 'tied' }.
-import { fmtTime } from './format.js';
+import { fmtTime, ord } from './format.js';
 import { assistTag } from '../records.js';
 
 const DASH = '—';
@@ -32,4 +32,13 @@ export function describeBests(info) {
       { label: 'Best lap', race: t2(r.bestLap), best: t2(best.bestLap), tag: tagFor(r.bestLap, best.bestLap, info.newBestLap) }
     ]
   };
+}
+
+// The headline of a finished race, shared by the results screen and a race's details: { kick, head, place, timeLabel }.
+export function describeResult(r) {
+  let kick, head;
+  if (r.kind === 'finish') { kick = 'CHEQUERED FLAG'; head = r.place === 1 ? 'YOU WIN' : r.place <= 3 ? 'PODIUM' : 'CROSSED THE LINE'; }
+  else if (r.kind === 'last') { kick = 'NOBODY LEFT TO RACE'; head = 'LAST CAR STANDING'; }
+  else { kick = 'HULL AT ZERO'; head = 'WRECKED'; }
+  return { kick, head, place: r.kind === 'wrecked' ? DASH : ord(r.place), timeLabel: r.kind === 'finish' ? 'RACE TIME' : 'SURVIVED' };
 }

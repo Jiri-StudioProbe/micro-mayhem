@@ -169,6 +169,26 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
 .brow .tag.new { background: var(--gold); color: var(--ink); }
 .brow .tag.slower { color: var(--hot); }
 .bnote { margin: 0; font-size: 13px; letter-spacing: .14em; opacity: .65; text-transform: uppercase; }
+/* The records screens: a sticky BACK button, your bests, the list of races (each a button), and one race in full. */
+.topbar { position: sticky; top: -20px; z-index: 2; padding: 6px 0; margin: -6px 0; }
+h1.small { font-size: clamp(34px, 9vw, 60px); }
+.hboard { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 4px 0; }
+.hboard .lab { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
+.hboard b { font-family: var(--display); font-weight: 400; font-size: clamp(16px, 4.4vw, 22px); font-variant-numeric: tabular-nums; }
+.hlist { display: flex; flex-direction: column; gap: 8px; }
+.hrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; text-align: left; cursor: pointer; padding: 10px 12px; border-radius: 4px; color: inherit; font: inherit;
+  background: rgba(12,24,22,.7); border: 2px solid var(--line); }
+.hrow:hover { border-color: var(--paper); }
+.hrow:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+.hrow .hh { font-family: var(--display); font-size: clamp(16px, 4.2vw, 20px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.hrow .hw { font-size: 13px; letter-spacing: .1em; opacity: .7; text-align: right; white-space: nowrap; align-self: center; }
+.hrow .hs { grid-column: 1 / -1; font-size: 13px; letter-spacing: .12em; opacity: .65; text-transform: uppercase; overflow-wrap: anywhere; }
+.hrow.win { border-color: var(--gold); }
+.hrow.wrecked .hh { color: var(--hot); }
+.facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; padding: 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); }
+.facts dt { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; align-self: baseline; }
+.facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; white-space: pre-line; }
+.endbtns { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
 @media (max-width: 420px) { .keys { grid-template-columns: minmax(0, 1fr); } .hud-top { grid-template-columns: minmax(70px, auto) minmax(0, 1fr) 88px; gap: 8px; } #mini { width: 88px; height: 88px; } .hud-btns { top: 102px; } #toasts { top: 140px; } }
 /* A short landscape screen (a phone on its side): the results card goes into two columns so that the button never ends up below the fold. */
 @media (orientation: landscape) and (max-height: 520px) {
@@ -176,7 +196,9 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
   #end .flag { grid-column: 1 / -1; height: 16px; }
   #end .kicker, #end h1, #end .stats { grid-column: 1; }
   #end .bests { grid-column: 2; grid-row: 2 / span 3; align-self: start; padding: 8px 10px; gap: 6px; }
-  #end #again { grid-column: 2; grid-row: 5; align-self: end; justify-self: stretch; }
+  #end .endbtns { grid-column: 2; grid-row: 5; align-self: end; flex-wrap: nowrap; }
+  #end #again { flex: 1; }
+  h1.small { font-size: clamp(28px, 6vw, 44px); }
   #end h1 { font-size: clamp(34px, 8vw, 60px) !important; }
   #end .stat { padding: 8px 10px; } #end .stat b { font-size: clamp(20px, 3.4vw, 26px); }
   .brow b { font-size: clamp(16px, 2.8vw, 22px); }
@@ -254,6 +276,7 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
       </ul>
       <p class="touchnote">On a phone, hold the left thumb down to drive: the car accelerates by itself and you slide left/right to steer. FIRE and BRAKE are on the right. Driving assist keeps you off the walls and slows you for tight corners; switch it on or off here or during the race. Drive through yellow crates to pick up machine gun, rockets, mines or repairs.</p>
       <button class="snd inline" id="labBtn" type="button">STEERING LAB &middot; empty track, no weapons</button>
+      <button class="snd inline" id="recordsBtn" type="button">RECORDS &middot; your races and bests</button>
       <button class="snd inline" id="assistMenu" type="button" aria-pressed="false">DRIVING ASSIST: OFF</button>
       <button class="cta" id="start" type="button">Start race</button>
     </div>
@@ -275,7 +298,35 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
         <div class="brow"><span class="lab">Best lap</span><b id="bsLapRace">&mdash;</b><b id="bsLapBest">&mdash;</b><span class="tag" id="bsLapTag"></span></div>
         <p class="bnote" id="bsNote"></p>
       </div>
-      <button class="cta" id="again" type="button">Race again</button>
+      <div class="endbtns">
+        <button class="cta" id="again" type="button">Race again</button>
+        <button class="snd inline" id="endRecords" type="button">RECORDS</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="history" hidden>
+    <div class="card">
+      <div class="topbar"><button class="snd inline" id="histBack" type="button">&larr; BACK</button></div>
+      <div class="kicker">Your races</div>
+      <h1 class="small">Records</h1>
+      <div class="bests" id="histBoards" hidden>
+        <div class="bhead"><span class="lab">Personal bests</span><span class="lab">Race time</span><span class="lab">Best lap</span></div>
+        <div id="histBoardRows"></div>
+      </div>
+      <p class="bnote" id="histEmpty" hidden>No races yet. Finish or wreck a race and it shows up here.</p>
+      <div class="hlist" id="histList"></div>
+      <button class="snd inline" id="histMore" type="button" hidden>SHOW MORE</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="detail" hidden>
+    <div class="card">
+      <div class="topbar"><button class="snd inline" id="detBack" type="button">&larr; BACK</button></div>
+      <div class="kicker" id="detKick"></div>
+      <h1 class="small" id="detTitle"></h1>
+      <dl class="facts" id="detRows"></dl>
+      <p class="bnote" id="detTech"></p>
     </div>
   </div>
 </div>
