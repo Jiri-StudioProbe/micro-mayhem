@@ -69,6 +69,8 @@ export function createInput({ S, tune, initAudio, win = window, doc = document }
   // back() closes a records screen and says whether it did; browsing() is true while one is open.
   function connect(actions) {
     win.addEventListener('keydown', e => {
+      // Typing or pasting into a text box (the backup code) is the page's: no shortcut fires, except Escape, which still goes back.
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName || '') && e.code !== 'Escape') return;
       const a = KEYMAP[e.code];
       // Enter (or Space) on a start screen starts a race, unless a button other than the main one has the focus: then it presses that button.
       const onOtherButton = e.target && e.target.closest && e.target.closest('button') && !e.target.closest('#start, #again');

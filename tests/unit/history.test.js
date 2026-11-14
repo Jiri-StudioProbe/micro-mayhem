@@ -61,3 +61,22 @@ test('text from storage is passed through as it is (the screens set it as text, 
   const d = describeDetail(rec, fmt);
   assert.ok(d.tech.includes('id <img src') && d.tech.includes('<script>')); assert.equal(d.rows[1][1], '<B>X</B>');
 });
+
+import { describePreview } from '../../src/ui/history.js';
+const base = { races: 12, newRaces: 5, localOnly: 3, droppedRaces: 0, boards: 3, newBoards: 1, betterBests: 2, level: 'rookie', savedAt: '2026-11-12T18:02:00.000Z', newerVersion: false };
+
+test('the backup preview says how many races and boards the code holds and what is new, in plain sentences', () => {
+  const d = describePreview(base, fmt);
+  assert.deepEqual(d.lines, ['12 races, 5 new to this device.', '3 boards of bests, 2 better than yours, 1 new to this device.', 'Saved D:2026-11-12T18:02. Level in the code: ROOKIE.']);
+  assert.match(d.merge, /keeps your settings/); assert.match(d.replace, /The 3 races here that are not in the code would be lost\./);
+});
+
+test('the preview handles the small cases: one of a thing, none, nothing new, damaged records, a newer version', () => {
+  const one = describePreview({ ...base, races: 1, newRaces: 1, localOnly: 1, boards: 1, newBoards: 0, betterBests: 0 }, fmt);
+  assert.deepEqual(one.lines.slice(0, 2), ['1 race, 1 new to this device.', '1 board of bests.']); assert.match(one.replace, /The 1 race here that is not in the code would be lost/);
+  const none = describePreview({ ...base, races: 0, newRaces: 0, localOnly: 0, boards: 0, newBoards: 0, betterBests: 0, savedAt: null }, fmt);
+  assert.deepEqual(none.lines, ['0 races.', 'No bests.']); assert.doesNotMatch(none.replace, /lost/);
+  assert.equal(describePreview({ ...base, newRaces: 0 }, fmt).lines[0], '12 races, none new to this device.');
+  assert.ok(describePreview({ ...base, droppedRaces: 1 }, fmt).lines.includes('1 damaged record was left out.')); assert.ok(describePreview({ ...base, droppedRaces: 4 }, fmt).lines.includes('4 damaged records were left out.'));
+  assert.match(describePreview({ ...base, newerVersion: true }, fmt).lines.at(-1), /newer version/);
+});

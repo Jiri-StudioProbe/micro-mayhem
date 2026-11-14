@@ -168,6 +168,7 @@ test('Escape closes a records screen first; only when there is none does it leav
   const esc = () => dom.win.fire('keydown', { code: 'Escape' });
   assert.equal(esc().prevented, true); assert.deepEqual(log, ['back']);
   esc(); assert.deepEqual(log, ['back', 'back', 'exit']); void t;
+  open = true; log.length = 0; assert.equal(dom.win.fire('keydown', { code: 'Escape', target: { tagName: 'TEXTAREA', closest: () => null } }).prevented, true); assert.deepEqual(log, ['back'], 'Escape still goes back from inside a text box');
 });
 
 test('while a records screen is open the game keys are left alone (Space presses the focused button; it does not fire)', () => {
@@ -179,4 +180,12 @@ test('while a records screen is open the game keys are left alone (Space presses
   assert.equal(dom.win.fire('keydown', { code: 'ArrowUp' }).prevented, undefined); inp.readInput(1 / 60); assert.equal(S.input.thr, 0);
   browsing = false;
   assert.equal(dom.win.fire('keydown', { code: 'Space' }).prevented, true); inp.readInput(1 / 60); assert.equal(S.input.fire, 1, 'in a race Space fires again');
+});
+
+test('typing or pasting into a text box never triggers a shortcut (M does not mute, Enter does not start a race, letters do not drive)', () => {
+  const t = setup({ overlay: true });
+  const box = { tagName: 'TEXTAREA', closest: () => null };
+  for (const code of ['KeyM', 'Enter', 'Space', 'KeyW', 'ArrowUp', 'KeyD']) assert.equal(t.win.fire('keydown', { code, target: box }).prevented, undefined, code);
+  assert.deepEqual(t.calls, []); t.inp.readInput(1 / 60); assert.deepEqual([t.S.input.thr, t.S.input.steer], [0, 0]);
+  t.win.fire('keydown', { code: 'KeyM', target: { tagName: 'BODY', closest: () => null } }); assert.deepEqual(t.calls.filter(c => c !== 'audio'), ['mute'], 'the same key elsewhere still mutes');
 });

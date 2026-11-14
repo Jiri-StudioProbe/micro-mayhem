@@ -55,3 +55,21 @@ export function describeDetail(rec, fmtDate = defaultFmtDate) {
     tech: 'seed ' + rec.config.seed + DOT + 'rules v' + rec.simVersion + DOT + 'game ' + rec.appVersion + DOT + 'id ' + rec.id.slice(0, 8)
   };
 }
+
+const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+
+// What a backup code holds and what restoring it would do, for the Backup screen: { lines: [...], merge, replace }. `p` is previewImport's result and
+// `localRaces` how many races this device has now.
+export function describePreview(p, fmtDate = defaultFmtDate) {
+  const lines = [];
+  lines.push(plural(p.races, 'race', 'races') + (p.races ? (p.newRaces ? ', ' + p.newRaces + ' new to this device.' : ', none new to this device.') : '.'));
+  lines.push(p.boards ? plural(p.boards, 'board', 'boards') + ' of bests' + (p.betterBests ? ', ' + p.betterBests + ' better than yours' : '') + (p.newBoards ? ', ' + p.newBoards + ' new to this device' : '') + '.' : 'No bests.');
+  if (p.savedAt) lines.push('Saved ' + fmtDate(p.savedAt) + '. Level in the code: ' + String(p.level).toUpperCase() + '.');
+  if (p.droppedRaces) lines.push(plural(p.droppedRaces, 'damaged record was', 'damaged records were') + ' left out.');
+  if (p.newerVersion) lines.push('This code comes from a newer version of the game. What this version does not know is kept, but not shown.');
+  return {
+    lines,
+    merge: 'ADD TO THIS DEVICE keeps your settings and everything you have, and adds what is missing.',
+    replace: 'REPLACE EVERYTHING puts the code\'s profile in place of this device\'s: its races, bests and settings.' + (p.localOnly ? ' The ' + plural(p.localOnly, 'race', 'races') + ' here that ' + (p.localOnly === 1 ? 'is' : 'are') + ' not in the code would be lost.' : '')
+  };
+}

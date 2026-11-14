@@ -95,7 +95,8 @@ test('the keyboard: Enter on a records screen does not start a race, Space press
   const { page, close } = await open(profileOf(sample(5)));
   await page.keyboard.press('Tab');   // from the start screen: focus moves on in the page as usual
   await page.click('#recordsBtn');
-  await page.keyboard.press('Tab'); assert.equal(await page.evaluate(() => document.activeElement.className.split(' ')[0]), 'hrow', 'Tab goes from BACK to the first race');
+  await page.keyboard.press('Tab'); assert.equal(await page.evaluate(() => document.activeElement.id), 'histBackup', 'Tab goes from BACK to BACKUP');
+  await page.keyboard.press('Tab'); assert.equal(await page.evaluate(() => document.activeElement.className.split(' ')[0]), 'hrow', 'and on to the first race');
   await page.keyboard.press('Space'); assert.deepEqual(await screen(page), ['detail'], 'Space pressed the focused race');
   assert.equal(await page.evaluate(() => __mm.input.fire), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'detBack', 'the details open with the focus on BACK');

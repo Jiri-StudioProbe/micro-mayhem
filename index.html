@@ -170,7 +170,8 @@ kbd { font-family: var(--ui); font-weight: 700; font-size: 14px; padding: 2px 8p
 .brow .tag.slower { color: var(--hot); }
 .bnote { margin: 0; font-size: 13px; letter-spacing: .14em; opacity: .65; text-transform: uppercase; }
 /* The records screens: a sticky BACK button, your bests, the list of races (each a button), and one race in full. */
-.topbar { position: sticky; top: -20px; z-index: 2; padding: 6px 0; margin: -6px 0; }
+.topbar { position: sticky; top: -20px; z-index: 2; padding: 26px 0 8px; margin: -26px 0 -8px; display: flex; justify-content: space-between; gap: 10px;
+  background: linear-gradient(rgba(12,24,22,.96) 80%, rgba(12,24,22,0)); }   /* what scrolls under it stays out of the buttons' way */
 h1.small { font-size: clamp(34px, 9vw, 60px); }
 .hboard { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 4px 0; }
 .hboard .lab { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
@@ -185,6 +186,16 @@ h1.small { font-size: clamp(34px, 9vw, 60px); }
 .hrow .hs { grid-column: 1 / -1; font-size: 13px; letter-spacing: .12em; opacity: .65; text-transform: uppercase; overflow-wrap: anywhere; }
 .hrow.win { border-color: var(--gold); }
 .hrow.wrecked .hh { color: var(--hot); }
+.bkbox { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); }
+.bkbox.inner { background: rgba(255,255,255,.05); border-color: var(--gold); }
+.bkbox[hidden] { display: none; }
+.bkbox h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 20px; letter-spacing: .04em; }
+.bktext { margin: 0; font-size: 15px; line-height: 1.3; opacity: .9; overflow-wrap: anywhere; }
+.bktext.dim { font-size: 13px; opacity: .65; }
+.bktext.err { color: var(--hot); opacity: 1; font-weight: 700; } .bktext.ok { color: var(--cool); opacity: 1; font-weight: 700; }
+.bkbox textarea { width: 100%; height: 84px; resize: vertical; padding: 8px; border-radius: 4px; border: 2px solid var(--line); background: rgba(0,0,0,.35); color: var(--paper); font: 12px/1.3 ui-monospace, Menlo, Consolas, monospace; word-break: break-all; }
+.bkrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.cta.small { padding: 10px 18px; font-size: 16px; }
 .facts { margin: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px 18px; padding: 12px; border-radius: 4px; background: rgba(12,24,22,.7); border: 2px solid var(--line); }
 .facts dt { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; opacity: .7; align-self: baseline; }
 .facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; white-space: pre-line; }
@@ -307,7 +318,7 @@ h1.small { font-size: clamp(34px, 9vw, 60px); }
 
   <div class="overlay" id="history" hidden>
     <div class="card">
-      <div class="topbar"><button class="snd inline" id="histBack" type="button">&larr; BACK</button></div>
+      <div class="topbar"><button class="snd inline" id="histBack" type="button">&larr; BACK</button><button class="snd inline" id="histBackup" type="button">BACKUP</button></div>
       <div class="kicker">Your races</div>
       <h1 class="small">Records</h1>
       <div class="bests" id="histBoards" hidden>
@@ -317,6 +328,32 @@ h1.small { font-size: clamp(34px, 9vw, 60px); }
       <p class="bnote" id="histEmpty" hidden>No races yet. Finish or wreck a race and it shows up here.</p>
       <div class="hlist" id="histList"></div>
       <button class="snd inline" id="histMore" type="button" hidden>SHOW MORE</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="backup" hidden>
+    <div class="card">
+      <div class="topbar"><button class="snd inline" id="bkBack" type="button">&larr; BACK</button></div>
+      <div class="kicker">Your profile</div>
+      <h1 class="small">Backup</h1>
+      <section class="bkbox">
+        <h2>Save a copy</h2>
+        <p class="bktext" id="bkInfo">Preparing the code&hellip;</p>
+        <textarea id="bkCode" readonly spellcheck="false" aria-label="Your backup code"></textarea>
+        <div class="bkrow"><button class="snd inline" id="bkCopy" type="button">COPY CODE</button><button class="snd inline" id="bkSave" type="button">SAVE AS FILE</button></div>
+      </section>
+      <section class="bkbox">
+        <h2>Restore a copy</h2>
+        <p class="bktext">Paste a backup code, or load a saved file, then check it. Nothing changes until you choose.</p>
+        <textarea id="bkInput" spellcheck="false" aria-label="Paste a backup code here" placeholder="MMP1:&hellip;"></textarea>
+        <div class="bkrow"><button class="snd inline" id="bkCheck" type="button">CHECK CODE</button><button class="snd inline" id="bkPick" type="button">LOAD A FILE</button><input type="file" id="bkFile" accept=".txt,text/plain" hidden></div>
+        <div class="bkbox inner" id="bkPreview" hidden>
+          <p class="bktext" id="bkPreviewText"></p>
+          <div class="bkrow"><button class="cta small" id="bkMerge" type="button">ADD TO THIS DEVICE</button><button class="snd inline" id="bkReplace" type="button">REPLACE EVERYTHING</button></div>
+          <p class="bktext dim" id="bkMergeNote"></p><p class="bktext dim" id="bkReplaceNote"></p>
+        </div>
+        <p class="bktext" id="bkStatus" role="status" aria-live="polite"></p>
+      </section>
     </div>
   </div>
 

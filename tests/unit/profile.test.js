@@ -75,3 +75,35 @@ test('storage that is missing or throws never breaks the game; it just does not 
     assert.equal(p.data.settings.level, 'rookie', 'in-memory data is still usable');
   }
 });
+
+import { cleanProfileDoc } from '../../src/profile.js';
+import { goodRecord } from '../helpers/records.js';
+
+test('cleanProfileDoc: null for what is not a profile; for what is, a clean copy that shares nothing with the input', () => {
+  for (const x of [null, undefined, 5, 'x', [], {}, { settings: null }, { settings: [] }, { settings: 'x' }]) assert.equal(cleanProfileDoc(x), null, JSON.stringify(x));
+  const raw = { settings: { level: 'rookie', presets: { rookie: { pv: 1, tune: {}, assist: null } } }, extra: { a: 1 } };
+  const c = cleanProfileDoc(raw);
+  assert.deepEqual([c.version, c.races, c.bests, c.extra], [2, [], {}, { a: 1 }]);
+  c.settings.level = 'x'; assert.equal(raw.settings.level, 'rookie', 'the settings object is a copy');
+});
+
+test('a __proto__ field in a stored or imported document does not change what the profile inherits from', () => {
+  const st = memoryStorage({ [PROFILE_KEY]: '{"__proto__":{"evil":1,"races":["x"]},"settings":{"__proto__":{"level":"hacked"},"level":"rookie"}}' });
+  const p = createProfile(st);
+  assert.equal(Object.getPrototypeOf(p.data), Object.prototype); assert.equal(p.data.evil, undefined); assert.equal(Object.getPrototypeOf(p.data.settings), Object.prototype);
+  assert.equal(p.data.settings.level, 'rookie'); assert.deepEqual(p.data.races, []); assert.equal({}.evil, undefined);
+});
+
+test('replace swaps the whole document in place, writes it first, and does nothing if it cannot', () => {
+  const st = memoryStorage(), p = createProfile(st), ref = p.data;
+  const r = goodRecord(); r.id = 'keep';
+  assert.equal(p.replace({ settings: { level: 'rookie', presets: {} }, races: [r], note: 'n' }), true);
+  assert.equal(p.data, ref, 'the same object: whoever holds it sees the new document'); assert.deepEqual([p.data.settings.level, p.data.races.length, p.data.note], ['rookie', 1, 'n']);
+  assert.equal(JSON.parse(st.m.get(PROFILE_KEY)).races[0].id, 'keep'); assert.equal(typeof p.data.updatedAt, 'string');
+  assert.equal(createProfile(st).data.races[0].id, 'keep', 'and it is what the next visit loads');
+  const before = JSON.stringify(p.data);
+  assert.equal(p.replace({ settings: 5 }), false); assert.equal(p.replace(null), false); assert.equal(JSON.stringify(p.data), before, 'a document that is not a profile changes nothing');
+  st.setItem = () => { throw new Error('QuotaExceededError'); };
+  assert.equal(p.replace({ settings: { level: 'veteran', presets: {} }, races: [] }), false); assert.equal(JSON.stringify(p.data), before, 'a failed write changes nothing in memory either');
+  assert.equal(createProfile(null).replace({ settings: { level: 'x', presets: {} } }), false, 'no storage at all: it cannot keep anything');
+});
