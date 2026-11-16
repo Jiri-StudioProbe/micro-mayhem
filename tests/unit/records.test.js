@@ -150,36 +150,37 @@ test('addRace appends, trims the history to the latest 500 (keeping every best),
 });
 
 // ---- the recorder ----
-const fakeProfile = () => ({ data: { races: [], bests: {} }, saves: 0, save() { this.saves++; } });
+// The recorder saves into the character who is playing (Profile.current()): a stand-in with a history and bests of its own.
+const fakeProfile = () => ({ character: { races: [], bests: {} }, current() { return this.character; }, saves: 0, save() { this.saves++; } });
 const fixedNow = () => new Date('2026-11-13T15:30:00.000Z');
 
 test('the recorder saves a finished race with its header, level, version and time, and says what it set', () => {
   const { S } = realRace('finish'), P = fakeProfile(); let ids = 0;
   const rec = createRecorder({ Profile: P, appVersion: '1.4.0', getLevel: () => 'rookie', now: fixedNow, newId: () => 'id-' + (++ids) });
   const info = rec.recordRace(S);
-  assert.equal(P.saves, 1); assert.equal(P.data.races.length, 1);
-  const saved = P.data.races[0];
+  assert.equal(P.saves, 1); assert.equal(P.character.races.length, 1);
+  const saved = P.character.races[0];
   assert.deepEqual([saved.id, saved.ts, saved.appVersion, saved.level, saved.simVersion, saved.track], ['id-1', '2026-11-13T15:30:00.000Z', '1.4.0', 'rookie', S.simVersion, 'classic']);
   assert.deepEqual(saved.config, S.config); assert.deepEqual(saved.result.laps, S.result.laps);
   assert.deepEqual([info.record.id, info.newBestTime, info.newBestLap, info.previous], ['id-1', true, true, null]);
-  assert.deepEqual(P.data.bests['classic/rookie/manual'].time, S.result.time);
+  assert.deepEqual(P.character.bests['classic/rookie/manual'].time, S.result.time);
   assert.notEqual(cleanRecord(saved), null);
 });
 
 test('the recorder saves wrecked and last-car races too, and ignores the lab, the demo, and a race with no result', () => {
   const P = fakeProfile(), rec = createRecorder({ Profile: P, appVersion: '1.4.0', getLevel: () => 'veteran', now: fixedNow });
   for (const kind of ['wrecked', 'last']) assert.ok(rec.recordRace(realRace(kind).S), kind);
-  assert.equal(P.data.races.length, 2); assert.equal(P.saves, 2);
+  assert.equal(P.character.races.length, 2); assert.equal(P.saves, 2);
   const lab = { result: { kind: 'wrecked' }, config: { mode: 'lab' } }, attract = { result: { kind: 'last' }, config: { mode: 'attract' } };
   assert.equal(rec.recordRace(lab), null); assert.equal(rec.recordRace(attract), null);
   assert.equal(rec.recordRace({ result: null, config: { mode: 'race' } }), null); assert.equal(rec.recordRace({ result: { kind: 'finish' } }), null);
-  assert.equal(P.data.races.length, 2); assert.equal(P.saves, 2);
+  assert.equal(P.character.races.length, 2); assert.equal(P.saves, 2);
 });
 
 test('a result that is not a valid record is reported (it is a bug) and never reaches the history', () => {
   const { S } = realRace('finish'), P = fakeProfile(), rec = createRecorder({ Profile: P, appVersion: '1.4.0', getLevel: () => 'veteran', now: fixedNow });
   const broken = { ...S, result: { ...clone(S.result), laps: [1, 2], bestLap: 99 }, config: S.config, simVersion: S.simVersion };
-  assert.throws(() => rec.recordRace(broken), /not valid/); assert.equal(P.data.races.length, 0); assert.equal(P.saves, 0);
+  assert.throws(() => rec.recordRace(broken), /not valid/); assert.equal(P.character.races.length, 0); assert.equal(P.saves, 0);
 });
 
 test('race ids are unique and well-formed', () => {

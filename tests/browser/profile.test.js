@@ -35,8 +35,8 @@ test('only changed values are saved, per level, and levels do not affect each ot
   await page.tap('#tune [data-level=rookie]');
   await setSlider(page, 'gain', 1.9);
   await page.tap('#assistTune');   // rookie default is assist on; turning it off is a deliberate change
-  let s = (await stored(page)).settings;
-  assert.equal(s.level, 'rookie');
+  const doc = await stored(page), s = doc.settings;
+  assert.equal(doc.characters.find(c => c.id === s.character).level, 'rookie', 'the level is saved with the character who is playing'); assert.equal(s.level, undefined);
   assert.deepEqual(s.presets.rookie, { pv: 1, tune: { gain: 1.9 }, assist: false });
   await page.tap('#tune [data-level=veteran]');
   assert.equal((await out(page)).gain, 2.6, 'veteran is untouched by rookie tweaks');

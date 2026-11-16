@@ -6,6 +6,7 @@
 import { fmtTime } from './format.js';
 import { assistTag } from '../records.js';
 import { describeResult } from './results.js';
+import { MAX_CHARACTERS } from '../household.js';
 
 const DASH = '—', DOT = ' · ';
 const t2 = v => (v === null || v === undefined ? DASH : fmtTime(v, 2));
@@ -58,18 +59,22 @@ export function describeDetail(rec, fmtDate = defaultFmtDate) {
 
 const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many);
 
-// What a backup code holds and what restoring it would do, for the Backup screen: { lines: [...], merge, replace }. `p` is previewImport's result and
-// `localRaces` how many races this device has now.
+// What a backup code holds and what restoring it would do, for the Backup screen: { lines: [...], merge, replace }. `p` is previewImport's result.
+// (The names came from the code: the caller shows these lines as text, never as markup.)
 export function describePreview(p, fmtDate = defaultFmtDate) {
   const lines = [];
+  if (p.legacy) lines.push('This code is from before players: it holds one history, and adding it puts its races into ' + p.into + '.');
+  else lines.push(plural(p.characters.length, 'player', 'players') + ': ' + p.characters.join(', ') + (p.newCharacters ? ' (' + p.newCharacters + ' new to this device)' : '') + '.');
+  if (p.replacesEmpty) lines.push('The empty player on this device (' + p.replacesEmpty + ') is replaced.');
+  if (p.droppedCharacters) lines.push(plural(p.droppedCharacters, 'player', 'players') + ' could not be added: a household holds up to ' + MAX_CHARACTERS + '.');
   lines.push(plural(p.races, 'race', 'races') + (p.races ? (p.newRaces ? ', ' + p.newRaces + ' new to this device.' : ', none new to this device.') : '.'));
   lines.push(p.boards ? plural(p.boards, 'board', 'boards') + ' of bests' + (p.betterBests ? ', ' + p.betterBests + ' better than yours' : '') + (p.newBoards ? ', ' + p.newBoards + ' new to this device' : '') + '.' : 'No bests.');
-  if (p.savedAt) lines.push('Saved ' + fmtDate(p.savedAt) + '. Level in the code: ' + String(p.level).toUpperCase() + '.');
+  if (p.savedAt) lines.push('Saved ' + fmtDate(p.savedAt) + '.');
   if (p.droppedRaces) lines.push(plural(p.droppedRaces, 'damaged record was', 'damaged records were') + ' left out.');
   if (p.newerVersion) lines.push('This code comes from a newer version of the game. What this version does not know is kept, but not shown.');
   return {
     lines,
     merge: 'ADD TO THIS DEVICE keeps your settings and everything you have, and adds what is missing.',
-    replace: 'REPLACE EVERYTHING puts the code\'s profile in place of this device\'s: its races, bests and settings.' + (p.localOnly ? ' The ' + plural(p.localOnly, 'race', 'races') + ' here that ' + (p.localOnly === 1 ? 'is' : 'are') + ' not in the code would be lost.' : '')
+    replace: 'REPLACE EVERYTHING puts the code\'s household in place of this device\'s: its players, races, bests and settings.' + (p.localOnly ? ' The ' + plural(p.localOnly, 'race', 'races') + ' here that ' + (p.localOnly === 1 ? 'is' : 'are') + ' not in the code would be lost.' : '')
   };
 }

@@ -26,9 +26,9 @@ export function createHistoryUi({ doc, router, Profile, fmtDate = defaultFmtDate
 
   // Fills the screen from the profile as it is now (a race may have been added since it was last opened).
   function render() {
-    races = Profile.data.races.slice().reverse();   // newest first
+    const who = Profile.current(); races = who.races.slice().reverse();   // newest first, the playing character's
     shown = 0; openedRow = null; listEl.textContent = '';
-    const boards = describeBoards(Profile.data.bests), rows = $('histBoardRows');
+    const boards = describeBoards(who.bests), rows = $('histBoardRows');
     rows.textContent = '';
     for (const b of boards) { const r = el('div', 'hboard'); r.append(el('span', 'lab', b.board), el('b', null, b.time), el('b', null, b.lap)); rows.appendChild(r); }
     $('histBoards').hidden = !boards.length;

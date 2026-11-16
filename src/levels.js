@@ -30,7 +30,7 @@ export const TUNE_DEFS = [
 export const isLevel = name => typeof name === 'string' && Object.hasOwn(LEVELS, name);
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-// The live settings for one profile. `tune` is one object that is updated in place, so holders of it always see current values.
+// The live settings for one profile: the playing character's level and this device's tuning. `tune` is one object that is updated in place, so holders of it always see current values.
 // The saved data may be damaged or hand-edited; nothing in it is trusted to have the right shape.
 export function createSettings(Profile) {
   function overridesFor(lv) {
@@ -41,11 +41,13 @@ export function createSettings(Profile) {
     if (o.assist !== null && typeof o.assist !== 'boolean') o.assist = null;
     return o;
   }
-  let level = isLevel(Profile.data.settings.level) ? Profile.data.settings.level : 'veteran';
+  // The level belongs to the character who is playing; the tuning (presets) belongs to this device.
+  const characterLevel = () => (isLevel(Profile.current().level) ? Profile.current().level : 'veteran');
+  let level = characterLevel();
   const tune = {};
   function loadLevel(name) {
     if (!isLevel(name)) return;
-    level = name; Profile.data.settings.level = name;
+    level = name; Profile.setLevel(name);
     const ov = overridesFor(name).tune;
     TUNE_DEFS.forEach(d => { const v = ov[d.k]; tune[d.k] = typeof v === 'number' && isFinite(v) ? clamp(v, d.min, d.max) : LEVELS[name].tune[d.k]; });
   }
@@ -56,5 +58,7 @@ export function createSettings(Profile) {
   }
   const levelAssist = () => { const a = overridesFor(level).assist; return a === null ? LEVELS[level].assist : a; };
   loadLevel(level);
-  return { tune, get level() { return level; }, loadLevel, setTuneValue, levelAssist, overridesFor };
+  // Another character is playing: take up their level (the caller refreshes whatever shows it).
+  const reload = () => loadLevel(characterLevel());
+  return { tune, get level() { return level; }, loadLevel, reload, setTuneValue, levelAssist, overridesFor };
 }

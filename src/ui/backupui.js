@@ -2,13 +2,13 @@
 // (describePreview), the format and the merging in src/backup.js; this is the DOM and the order of things. Text only, never markup.
 // Restoring replaces the stored profile and then reloads the page, so that every part of the game starts again from what is stored (the level, the tuning,
 // the history) instead of this module having to update each of them.
-import { encodeBackup, decodeBackup, mergeProfiles, previewImport } from '../backup.js';
+import { encodeBackup, decodeBackup, mergeProfiles, previewImport, rawRaceCount, isLegacyDoc } from '../backup.js';
 import { cleanProfileDoc } from '../profile.js';
 import { describePreview, defaultFmtDate } from './history.js';
 
 export function createBackupUi({ doc, router, Profile, now = () => new Date(), reload = () => location.reload(), fmtDate = defaultFmtDate, urlApi = typeof URL !== 'undefined' ? URL : null, clipboard = () => (typeof navigator !== 'undefined' ? navigator.clipboard : null) }) {
   const $ = id => doc.getElementById(id);
-  let pending = null, token = 0, replaceArmed = 0;
+  let pending = null, pendingOpts = null, token = 0, replaceArmed = 0;
   const status = (text, kind) => { const e = $('bkStatus'); e.textContent = text; e.className = 'bktext' + (kind ? ' ' + kind : ''); };
 
   // The code for the profile as it is now.
@@ -18,11 +18,12 @@ export function createBackupUi({ doc, router, Profile, now = () => new Date(), r
       const code = await encodeBackup(Profile.data);
       if (my !== token) return;
       $('bkCode').value = code;
-      $('bkInfo').textContent = Profile.data.races.length + (Profile.data.races.length === 1 ? ' race' : ' races') + ' and your settings, as a code of ' + Math.max(1, Math.round(code.length / 1024)) + ' KB. Keep it somewhere safe.';
+      const chars = Profile.data.characters, races = chars.reduce((n, c) => n + c.races.length, 0);
+      $('bkInfo').textContent = chars.length + (chars.length === 1 ? ' player, ' : ' players, ') + races + (races === 1 ? ' race' : ' races') + ' and your settings, as a code of ' + Math.max(1, Math.round(code.length / 1024)) + ' KB. Keep it somewhere safe.';
     } catch (_) { if (my === token) $('bkInfo').textContent = 'The code could not be made in this browser.'; }
   }
 
-  function clearPreview() { pending = null; replaceArmed = 0; $('bkPreview').hidden = true; $('bkReplace').textContent = 'REPLACE EVERYTHING'; }
+  function clearPreview() { pending = pendingOpts = null; replaceArmed = 0; $('bkPreview').hidden = true; $('bkReplace').textContent = 'REPLACE EVERYTHING'; }
 
   async function check() {
     clearPreview(); status('');
@@ -30,8 +31,8 @@ export function createBackupUi({ doc, router, Profile, now = () => new Date(), r
     if (!res.ok) { status(res.error, 'err'); return; }
     const imported = cleanProfileDoc(res.doc);
     if (!imported) { status('The code does not hold a profile.', 'err'); return; }
-    pending = imported;
-    const d = describePreview(previewImport(Profile.data, imported, Array.isArray(res.doc.races) ? res.doc.races.length : 0), fmtDate);
+    pending = imported; pendingOpts = { legacyTo: isLegacyDoc(res.doc) ? Profile.current().id : null };   // (an old code has no characters: it is added to the one who is playing)
+    const d = describePreview(previewImport(Profile.data, imported, rawRaceCount(res.doc), pendingOpts), fmtDate);
     $('bkPreviewText').textContent = d.lines.join(' '); $('bkMergeNote').textContent = d.merge; $('bkReplaceNote').textContent = d.replace;
     $('bkPreview').hidden = false; status('The code is good. Choose what to do with it.', 'ok');
   }
@@ -40,7 +41,7 @@ export function createBackupUi({ doc, router, Profile, now = () => new Date(), r
     if (!ok) { status('This browser is not letting the game keep data, so nothing could be restored.', 'err'); return; }
     status('Restored. Starting again with it…', 'ok'); reload();
   }
-  function merge() { if (pending) finish(Profile.replace(mergeProfiles(Profile.data, pending))); }
+  function merge() { if (pending) finish(Profile.replace(mergeProfiles(Profile.data, pending, pendingOpts))); }
   // REPLACE destroys what is here, so it asks twice: the first tap arms it (and says so), the second, within a few seconds, does it.
   function replace() {
     if (!pending) return;

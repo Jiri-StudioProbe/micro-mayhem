@@ -8,6 +8,7 @@
 // Everything that comes back from storage (or, later, from an imported backup code) passes through cleanRecord(), which returns a fresh
 // canonical record or null: a damaged record is dropped and the rest of the history is kept.
 import { Sim } from './sim/sim.js';
+import { newId } from './util.js';
 
 export const MAX_RACES = 500;        // the history keeps this many of the latest races; personal bests are kept for ever
 export const TRACK_ID = 'classic';   // the one track so far (M8 adds more)
@@ -21,11 +22,7 @@ const isNum = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >=
 const isStr = (v, max) => typeof v === 'string' && v.length >= 1 && v.length <= max;
 
 // A fresh id for a race. Made on the device so that a race uploaded twice later is still one race.
-export function newRaceId() {
-  try { if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID(); } catch (_) {}
-  let s = ''; for (let i = 0; i < 32; i++) s += Math.floor(Math.random() * 16).toString(16);
-  return s;
-}
+export const newRaceId = newId;
 
 // What kind of assist the race was driven with, for grouping bests: 'assist', 'manual', or 'mixed' (it was toggled during the race).
 export const assistTag = rec => (rec.result.assistChanged ? 'mixed' : rec.config.assist ? 'assist' : 'manual');
@@ -123,7 +120,7 @@ export function mergeBests(a, b) {
 }
 
 /* ---------- the history in a profile ---------- */
-// Adds a race to a profile's data (mutates data.races and data.bests). A race with an id already in the history is not added twice.
+// Adds a race to a history (mutates its `races` and `bests`: a character has both, and so did a version 2 profile). A race with an id already in the history is not added twice.
 export function addRace(data, rec) {
   if (data.races.some(r => r.id === rec.id)) return { duplicate: true, key: null, newBestTime: false, newBestLap: false, previous: null, best: null };
   data.races.push(rec);
@@ -131,7 +128,7 @@ export function addRace(data, rec) {
   return { duplicate: false, ...updateBests(data.bests, rec) };
 }
 
-// Saves each race that ends. `Profile` is src/profile.js's; `getLevel()` the current difficulty level; `appVersion` the game's version.
+// Saves each race that ends, into the history of the character who is playing (Profile.current()). `Profile` is src/profile.js's; `getLevel()` the current difficulty level; `appVersion` the game's version.
 export function createRecorder({ Profile, appVersion, getLevel, now = () => new Date(), newId = newRaceId }) {
   return {
     // Records the race that has just ended in S (S.result is set). Only real races count: the lab and the demo behind the menu are not saved.
@@ -140,7 +137,7 @@ export function createRecorder({ Profile, appVersion, getLevel, now = () => new 
       if (!S.result || !S.config || S.config.mode !== 'race') return null;
       const made = cleanRecord(makeRecord({ id: newId(), ts: now().toISOString(), appVersion, header: Sim.raceHeader(S), level: getLevel(), result: S.result }));
       if (!made) throw new Error('the record of a finished race was not valid');   // a bug, not a player's doing: the caller logs it; the history is untouched
-      const info = addRace(Profile.data, made);
+      const info = addRace(Profile.current(), made);
       Profile.save();
       return { record: made, ...info };
     }

@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LEVELS, TUNE_DEFS, PRESET_VERSION, createSettings } from '../../src/levels.js';
 
-// A stand-in profile: the settings only need `data` and `save`.
-const profile = (settings = {}) => ({ data: { version: 1, settings: { level: 'veteran', presets: {}, ...settings } }, saves: 0, save() { this.saves++; } });
+// A stand-in profile: the settings need `data` (the device's presets), the playing character's level, and `save`.
+const profile = (settings = {}, level = 'veteran') => ({ data: { settings: { presets: {}, ...settings } }, character: { level }, current() { return this.character; }, setLevel(n) { this.character.level = n; }, saves: 0, save() { this.saves++; } });
 const VETERAN = { gain: 2.6, curve: 2.55, maxLock: 1, speedDamp: 0.45, rate: 79, dead: 0.14, radius: 48, assistLane: 0.3, assistSpeed: 1.1 };
 const ROOKIE = { ...VETERAN, assistLane: 1.5, assistSpeed: 1.5 };
 
@@ -33,7 +33,7 @@ test('switching level loads that level and remembers the choice', () => {
   const p = profile(), s = createSettings(p), tuneObject = s.tune;
   s.loadLevel('rookie');
   assert.equal(s.level, 'rookie'); assert.deepEqual(s.tune, ROOKIE); assert.equal(s.levelAssist(), true);
-  assert.equal(p.data.settings.level, 'rookie');
+  assert.equal(p.character.level, 'rookie', 'the level is the playing character\'s');
   assert.equal(s.tune, tuneObject, 'the tune object is updated in place (other code holds a reference to it)');
 });
 
@@ -78,7 +78,7 @@ test('using the settings never changes the shipped level data', () => {
 const HOSTILE_LEVELS = ['nope', '', 'constructor', '__proto__', 'toString', 'hasOwnProperty', 42, null, {}, ['rookie']];
 for (const lv of HOSTILE_LEVELS) {
   test(`a saved level of ${JSON.stringify(lv)} falls back to Veteran`, () => {
-    const s = createSettings(profile({ level: lv }));
+    const s = createSettings(profile({}, lv));
     assert.equal(s.level, 'veteran'); assert.deepEqual(s.tune, VETERAN);
   });
 }
@@ -98,3 +98,11 @@ for (const assist of ['yes', 1, 0, 'false', {}, []]) {
     assert.equal(typeof s.levelAssist(), 'boolean');
   });
 }
+
+test('another character playing: reload takes up their level, and the device\'s tuning stays', () => {
+  const p = profile({ presets: { rookie: { pv: PRESET_VERSION, tune: { gain: 1.5 }, assist: null } } }), s = createSettings(p);
+  assert.equal(s.level, 'veteran');
+  p.character = { level: 'rookie' }; s.reload();
+  assert.equal(s.level, 'rookie'); assert.equal(s.tune.gain, 1.5, 'presets are per device, so the same tuning applies to whoever plays'); assert.equal(s.levelAssist(), true);
+  p.character = { level: 'nonsense' }; s.reload(); assert.equal(s.level, 'veteran', 'an unknown level falls back to Veteran');
+});

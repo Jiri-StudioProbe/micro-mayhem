@@ -63,20 +63,31 @@ test('text from storage is passed through as it is (the screens set it as text, 
 });
 
 import { describePreview } from '../../src/ui/history.js';
-const base = { races: 12, newRaces: 5, localOnly: 3, droppedRaces: 0, boards: 3, newBoards: 1, betterBests: 2, level: 'rookie', savedAt: '2026-11-12T18:02:00.000Z', newerVersion: false };
+const base = { races: 12, newRaces: 5, localOnly: 3, droppedRaces: 0, boards: 3, newBoards: 1, betterBests: 2, characters: ['Ada', 'Tom'], newCharacters: 1, droppedCharacters: 0, replacesEmpty: null, legacy: false, into: null,
+  savedAt: '2026-11-12T18:02:00.000Z', newerVersion: false };
 
 test('the backup preview says how many races and boards the code holds and what is new, in plain sentences', () => {
   const d = describePreview(base, fmt);
-  assert.deepEqual(d.lines, ['12 races, 5 new to this device.', '3 boards of bests, 2 better than yours, 1 new to this device.', 'Saved D:2026-11-12T18:02. Level in the code: ROOKIE.']);
+  assert.deepEqual(d.lines, ['2 players: Ada, Tom (1 new to this device).', '12 races, 5 new to this device.', '3 boards of bests, 2 better than yours, 1 new to this device.', 'Saved D:2026-11-12T18:02.']);
   assert.match(d.merge, /keeps your settings/); assert.match(d.replace, /The 3 races here that are not in the code would be lost\./);
 });
 
 test('the preview handles the small cases: one of a thing, none, nothing new, damaged records, a newer version', () => {
   const one = describePreview({ ...base, races: 1, newRaces: 1, localOnly: 1, boards: 1, newBoards: 0, betterBests: 0 }, fmt);
-  assert.deepEqual(one.lines.slice(0, 2), ['1 race, 1 new to this device.', '1 board of bests.']); assert.match(one.replace, /The 1 race here that is not in the code would be lost/);
+  assert.deepEqual(one.lines.slice(1, 3), ['1 race, 1 new to this device.', '1 board of bests.']); assert.match(one.replace, /The 1 race here that is not in the code would be lost/);
   const none = describePreview({ ...base, races: 0, newRaces: 0, localOnly: 0, boards: 0, newBoards: 0, betterBests: 0, savedAt: null }, fmt);
-  assert.deepEqual(none.lines, ['0 races.', 'No bests.']); assert.doesNotMatch(none.replace, /lost/);
-  assert.equal(describePreview({ ...base, newRaces: 0 }, fmt).lines[0], '12 races, none new to this device.');
+  assert.deepEqual(none.lines, ['2 players: Ada, Tom (1 new to this device).', '0 races.', 'No bests.']); assert.doesNotMatch(none.replace, /lost/);
+  assert.equal(describePreview({ ...base, newRaces: 0 }, fmt).lines[1], '12 races, none new to this device.');
   assert.ok(describePreview({ ...base, droppedRaces: 1 }, fmt).lines.includes('1 damaged record was left out.')); assert.ok(describePreview({ ...base, droppedRaces: 4 }, fmt).lines.includes('4 damaged records were left out.'));
   assert.match(describePreview({ ...base, newerVersion: true }, fmt).lines.at(-1), /newer version/);
+});
+
+test('the preview names the players in the code, says which are new, and what an old code (from before players) would do', () => {
+  assert.equal(describePreview({ ...base, characters: ['Ada'], newCharacters: 0 }, fmt).lines[0], '1 player: Ada.');
+  const old = describePreview({ ...base, characters: ['Player'], newCharacters: 0, legacy: true, into: 'Tom' }, fmt);
+  assert.equal(old.lines[0], 'This code is from before players: it holds one history, and adding it puts its races into Tom.');
+  assert.ok(!old.lines.some(l => /^1 player/.test(l)));
+  assert.ok(describePreview({ ...base, droppedCharacters: 2 }, fmt).lines.includes('2 players could not be added: a household holds up to 8.'));
+  assert.match(describePreview(base, fmt).replace, /players, races, bests and settings/);
+  assert.equal(describePreview({ ...base, replacesEmpty: 'Player' }, fmt).lines[1], 'The empty player on this device (Player) is replaced.');
 });
