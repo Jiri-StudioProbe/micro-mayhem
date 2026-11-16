@@ -70,7 +70,7 @@ Trade-off to accept: with ES modules, double-clicking `index.html` from disk sto
 Context: data is private to a household, there are no cross-household leaderboards, no multiplayer and no payments. That changes what must be protected. (The household model is section 5b; privacy and GDPR are section 5c; where they differ from this section, 5b and 5c win.)
 
 **Authorization is the must-have; anti-cheat is not.** There are two separate questions:
-- *Who may touch this profile?* Login, plus a server rule that a user can read and write only their own rows. Required from day one.
+- *Who may touch this household?* Holding its recovery key (which makes a device a member), plus a server rule that a device can read and write only the rows of households it belongs to. Required from day one.
 - *Is what the client reports true?* The race runs on the player's device, so the server only ever receives a claim, and anyone can edit saved data, modify the game or send a hand-made request. With private data the only person a cheater cheats is themselves, so **no anti-cheat now**.
 
 Cheap habits that stay (they protect against our own bugs as much as against cheats):
@@ -79,7 +79,7 @@ Cheap habits that stay (they protect against our own bugs as much as against che
 - **The server owns aura and purchases.** Balance is the sum of an append-only **ledger**; purchases are server-side and check the balance. The client never writes a balance.
 - **Client-generated race ids** make uploads idempotent: a retried or double-sent race credits once.
 
-**Accounts.** Guest-first: play immediately on a local household, and optionally sign in to keep it across devices (an emailed 6-digit code; no passwords, no Google or Apple). A guest household can be claimed by signing in, so nothing is lost.
+**Accounts.** Guest-first: play immediately on a local household, and optionally put it online to use it across devices. **There is no email, name or password anywhere: a household is a random ID plus a recovery key** (section 5b). A local household is *claimed* online by uploading it under a new key, so nothing is lost.
 
 **What lives where.**
 - *Profile document* (settings, driver, selected car, level tweaks): one versioned JSON blob. The client migrates it, so the server schema does not change when the profile grows. Merge rule: last write wins, by `updatedAt`.
@@ -106,7 +106,7 @@ Cheap habits that stay (they protect against our own bugs as much as against che
 
 **Backend.** A managed service, with Supabase as the leading candidate: sign-in, a Postgres database, row-level security (the "own rows only" rule is a one-line policy) and server functions for `commit_race` and `purchase`. The game stays on GitHub Pages. Confirm the choice with a short spike in milestone M3 before committing; Firebase is the alternative. The service's public client key is designed to ship in the page; **any secret key must never enter the repository.**
 
-**Privacy and legal (still required when data is private).** An email address is personal data. Needed before inviting anyone: a short privacy policy and terms, a way to delete the account and its data, and a way to export it. Self-host the fonts (loading them from Google sends visitors' IP addresses to Google). Decide early whether children may play: that changes consent, and the safest design collects no email from them.
+**Privacy and legal (still required when data is private).** The full plan is section 5c. The design goal is to hold as little personal data as possible: no email, no name, no age, only a nickname, random IDs and race times. Self-host the fonts (loading them from Google sends visitors' IP addresses to Google; done in M0.3).
 
 **Operations once strangers use it.** Report client errors somewhere you can see them (the freeze we found would otherwise be invisible). Keep a separate staging deployment so a bad build never reaches the live site. Version the API as well as the profile, because old cached pages will keep calling it.
 
@@ -115,31 +115,33 @@ Cheap habits that stay (they protect against our own bugs as much as against che
 ## 5b. Households and characters: decisions made
 
 ```
-Household (the account: one email login)
+Household (the account: a random ID and a recovery key; no email)
  ├─ Character "Jiri"   → races, bests, (later) aura, cars, upgrades
  ├─ Character "Anna"   → …
  └─ Character "Tom"    → …
 Family leaderboard = the characters of one household, ranked on their races
 ```
 
-- **The household is the account.** Only an adult holds an email. A character has no login, only a nickname, so nothing personal is collected from children.
+- **The household is the account, and it holds no email and no name.** It is a random ID plus a secret **recovery key**. A character has no login, only a nickname, so nothing personal is collected from anyone, children included.
 - **A character owns the progress** (races, bests, aura, cars, upgrades), so M6 and M7 stay per-character with no redesign.
 - **Characters are chosen on a "Who's playing?" screen** on any device signed in to the household; the last one used on a device is remembered.
 - **Anyone signed in to the household may play and edit any character.** No PIN between family members for now (an optional per-character PIN can come later).
 - **The family leaderboard is derived, not stored**: each character's best per board (track, level, assist) computed from the household's races. Boards stay separate by level and assist, as personal bests are today.
-- **Sign-in: an emailed 6-digit code**, typed into the page (email links often open in a different browser from the game on phones). No passwords. Google and Apple sign-in are not planned. Later option: a pairing code from a signed-in device, so a child's tablet needs no email. The schema supports both.
-- **Several adults per household** (a partner, a grandparent): the schema holds a list of members from day one; the invite screen is not part of M3.
+- **Joining: the recovery key, not an email.** The first device creates the household and shows its key once (a 128-bit random secret, shown as groups of letters and digits, as a QR code, and as a file to save). Another device joins by typing the key or scanning the QR code from a device that is already in. Whoever holds the key can read and edit the household, which is the family model. **Lose every copy of the key and every device, and the household cannot be recovered**; the key screen says this plainly and asks the owner to save it. No passwords, no Google or Apple.
+- **How it works underneath.** Each device gets an anonymous account from the backend (a random ID, no email). Joining calls a server function with the key; the server stores only a **hash** of the key, checks it, rate-limits attempts, and adds a *member* row linking that device's anonymous ID to the household. Every access rule is "is this device a member of the row's household". A device that loses its browser data simply joins again with the key. "Remove other devices" deletes the member rows and issues a new key.
+- **Optional, later and opt-in:** an email recovery address. Not part of M3.
+- **Several people and devices** share a household by sharing the key; there are no roles, so every member is equal. (Per-person roles or a PIN can come later.)
 - **Settings split.** *Per device*: mute, steering tuning and the lab presets (a phone and a desktop feel different). *Per character*: name, difficulty level (so a child can stay on Rookie), races and bests.
 - **Today's local profile becomes the first character** on first run (you name it), so no race is lost.
 - **Server rule:** a user may read and write a row only if they belong to its household. Another household's rows are invisible. A cross-household feature would be a new, explicit sharing rule, not a change to this one.
 - **Merge rules:** the household and character documents are last-write-wins by `updatedAt`; races are a union by id; deleting a character or household syncs as a deletion (a tombstone), so other devices purge their copies.
-- **Guest-first stays.** A household that exists only on one device, with no account, works fully offline (the family leaderboard included). Signing in later *claims* it into an account.
+- **Guest-first stays.** A household that exists only on one device works fully offline (the family leaderboard included) and sends nothing anywhere. Putting it online later *claims* it: its characters and races are uploaded under a new key.
 
 Sketch of the model (the server shape; the local cache mirrors it):
 
 ```jsonc
 household:  { "id", "createdAt", "updatedAt", "deletedAt?" }
-member:     { "householdId", "userId", "role": "owner" | "adult" }       // userId = the auth account
+member:     { "householdId", "userId", "joinedAt" }                      // userId = one device's anonymous backend ID; one row per device that joined with the key
 character:  { "id", "householdId", "name", "updatedAt", "deletedAt?", "settings": { "level" } }   // livery etc. later
 race:       { "id", "characterId", "householdId", …existing record… }  // householdId copied in, so the access rule is one check
 ```
@@ -148,28 +150,28 @@ race:       { "id", "characterId", "householdId", …existing record… }  // ho
 
 **Honest framing.** GDPR applies to anyone who offers a service to people in the EU, wherever the owner lives, so we treat it as applying. "100% compliant" is not something code can certify: it is a mix of **technical design** (which we build and test) and **organisational duties** (which the owner holds). Before anyone outside the family is invited, **a lawyer or data-protection adviser reviews the result**; this section is the engineering checklist for that review, not legal advice.
 
-**Roles.** The owner is the *controller*. The backend provider (and the email-sending service) are *processors*: a signed data-processing agreement with each, a list of them in the privacy notice, and the backend project created in an **EU region**. Static hosting (GitHub Pages) sees visitors' IP addresses; the notice says so.
+**Roles.** The owner is the *controller*. The backend provider is a *processor*: a signed data-processing agreement, a mention in the privacy notice, and the backend project created in an **EU region**. There is no email-sending service. Static hosting (GitHub Pages) and the backend see visitors' IP addresses (provider logs, which we do not store or use); the notice says so.
 
-**Data we hold, and why.** Adult's email (to sign in); character nicknames and settings; race records (times, level, assist, seed). *Legal basis:* performing the service the adult asked for (Art. 6(1)(b)); a minimal security and error log under legitimate interest. No consent is needed for what we collect, provided we stay inside this list. Anything new (analytics, advertising, extra profile fields) needs a decision first.
+**Data we hold, and why.** Random household and device IDs; character nicknames and settings; race records (times, level, assist, seed). **No email, no name, no birthday, no age, no photo.** *Why this is still personal data:* a nickname plus a play history under a persistent ID is pseudonymous, which GDPR still counts, and IP addresses reach every server. We treat it as personal data and keep the obligations (notice, rights, security) small rather than claiming it is anonymous. *Legal basis:* providing the service the user asked for (Art. 6(1)(b)); a minimal security and error log under legitimate interest. Anything new (analytics, advertising, an email, extra profile fields) needs a decision first.
 
 **Designed in (testable).**
-- **Minimisation.** No child email, age, birthday, photo or free text beyond a nickname. The sign-in screen and character screen tell users to use a nickname, not a real name.
+- **Minimisation.** Nothing but what is listed above. The character screen tells users to use a nickname, not a real name, and nicknames are the only free text; an optional filter for obvious full names is not planned.
 - **No third parties in the page.** Fonts are self-hosted, tests already block every non-local request, and there is no analytics, so no cookie banner is needed: browser storage holds only what the game needs to work and keep you signed in.
 - **Remote error reports carry no personal data**: message, stack, app and sim version only. Never names, emails or race data; a test checks the scrubbing.
 - **Access control by row** (section 5b), tested: a user in household B cannot read household A. No secret key ever enters the repository.
-- **Transparency.** A plain-language privacy notice and a short child-friendly version, linked from the sign-in screen and the start screen; terms stating that the account holder is an adult who manages the players.
-- **Children.** The adult creates and controls every character; a character holds only a nickname. Whether the adult's agreement alone covers children's data under each country's rules (the age of digital consent is 13 to 16 depending on the member state) is a **question for the adviser**, not something we assume.
+- **Transparency.** A plain-language privacy notice and a short child-friendly version, linked from the start screen and the household screens; terms stating that whoever creates a household is responsible for the players in it.
+- **Children.** Whoever holds the key creates and controls every character; a character holds only a nickname and its race times. Because no email or name is collected, there is no parent's contact to verify and no child profile to identify. Whether that is enough under each country's rules (the age of digital consent is 13 to 16 depending on the member state) is still a **question for the adviser**, though a much smaller one than with an email.
 - **Records.** A short record of processing and a breach procedure in `docs/`, kept up to date.
 
 **Rights, as features (M3.5).**
 - *Access and portability:* export the whole household as machine-readable JSON (the backup code already does this for one device).
-- *Rectification:* rename a character; change the email.
-- *Erasure:* delete a character (its races go with it) and delete the household (every row, the sign-in account, and local copies on the device; other devices purge at their next sync). The notice states how long provider backups keep deleted data.
+- *Rectification:* rename a character; "remove other devices" with a new key.
+- *Erasure:* delete a character (its races go with it) and delete the household (every row and every member, plus local copies on the device; other devices purge at their next sync). **Possession of the key is the proof of identity** for a request. The notice states how long provider backups keep deleted data.
 - *Restriction and objection, questions, complaints:* a privacy contact address in the notice; requests answered within one month.
 
-**Storage limitation.** Race history is kept while the household exists. A household inactive for **24 months** gets an email warning and is then deleted (to confirm with the adviser).
+**Storage limitation.** Race history is kept while the household exists. With no email there is nobody to warn, so a household not synced for **24 months** is deleted automatically and the notice says so (to confirm with the adviser).
 
-**Security.** TLS everywhere; rate limits on sign-in codes; least-privilege keys (the public client key ships in the page, any service key stays on the provider); dependency updates; the **72-hour breach notice** duty written into the breach procedure.
+**Security.** TLS everywhere; the key is 128-bit random, stored on the server only as a hash, and join attempts are rate-limited; least-privilege keys (the public client key ships in the page, any service key stays on the provider); dependency updates; the **72-hour breach notice** duty written into the breach procedure. The key screen warns that the key is a password: anyone who has it can use the household.
 
 **Open items for the owner and the adviser.** Whether a representative in the EU is required for a non-EU controller (there are exemptions for occasional, low-risk processing; children's data may weigh against them); whether a data-protection impact assessment is needed (children, new service); the retention period; the consent route for children in each country you share in.
 
@@ -212,8 +214,8 @@ Each milestone ends in a deployable build, green tests and a short "play it" che
 - **M3.1 Households and characters, local only.** Profile v3 with a migration (the existing profile becomes the first character; settings split into per-device and per-character); a "Who's playing?" screen (create, rename, delete a character, nickname guidance); races carry `characterId`; the **family leaderboard** screen built from the saved races. *Done when:* two characters on one browser have separate histories and bests and appear on a family leaderboard, and an old profile migrates without losing a race. No server, no network.
 - **M3.2 Sync layer against a fake backend.** `src/net/` behind a small interface (provider-neutral); the offline queue, the merge rules of section 5b and tombstones; a "not yet saved" state in the UI. *Done when:* tests with two simulated devices converge after offline edits, retries credit nothing twice, and a deletion purges the other device.
 - **M3.3 Backend spike, schema and access rules.** Confirm the provider (Supabase is the leading candidate; Firebase the alternative) with a short spike; create the project in an **EU region**; tables for households, members, characters and races; row-level rules; a test that user B cannot read or write household A. *Needs from you:* an account and project you own, the sandbox allowed to reach it, and the signed data-processing agreement. Secrets never enter the repository.
-- **M3.4 Sign-in and sync.** Emailed 6-digit code sign-in; "claim this device's household" into an account; a real provider adapter behind the M3.2 interface; sign out clears local data on request. *Done when:* a household started on a phone is complete on a laptop (a two-browser-context test), and nothing is lost offline.
-- **M3.5 Privacy, rights and operations.** Privacy notice (plain and child-friendly) and terms; export the household as JSON; delete a character and delete the household (every row, the sign-in account, local copies); the inactivity rule; remote error reporting with scrubbing; a staging deployment; records of processing and the breach procedure in `docs/`. **Gate: nobody outside your family is invited until the adviser has reviewed this.** *Done when:* your family plays on several devices and the privacy checklist in section 5c is green.
+- **M3.4 Create or join a household, and sync.** The key screen (create: key shown once, QR and file; join: type or scan); "put this device's household online" (claim); a real provider adapter behind the M3.2 interface using anonymous backend accounts; remove other devices (new key); leave this household and clear local data. *Done when:* a household created on a phone is joined on a laptop with the key and is complete there (a two-browser-context test), wrong or rate-limited keys are refused, and nothing is lost offline.
+- **M3.5 Privacy, rights and operations.** Privacy notice (plain and child-friendly) and terms; export the household as JSON; delete a character and delete the household (every row, every member, local copies); the 24-month expiry job; remote error reporting with scrubbing; a staging deployment; records of processing and the breach procedure in `docs/`. **Gate: nobody outside your family is invited until the adviser has reviewed this** (expected to be a short review, since no email or name is held). *Done when:* your family plays on several devices and the privacy checklist in section 5c is green.
 
 *How:* write the sync code against the interface so the provider can change; test with fakes first, then two real browser contexts. **This is the first milestone worth sharing, and testers' feedback on handling and menus will shape the rest.**
 
@@ -233,8 +235,8 @@ Throughout: run the playtest loop after M3 (share, collect feedback, fix handlin
 
 **Decided**
 1. **Audience:** family first, then friends, some of them in the EU, so GDPR applies (section 5c). Children may play, through an adult's household.
-2. **Sign-in:** emailed 6-digit code only. No Google or Apple.
-3. **Household model:** section 5b (several characters; free switching; one email login to start; level and presets as described there).
+2. **Accounts:** no email, no name, no password. A household is a random ID plus a recovery key; devices join with the key (option B). Optional email recovery is a possible later, opt-in addition.
+3. **Household model:** section 5b (several characters; free switching; members share a key; level and presets as described there).
 
 **Still open**
 4. **Backend:** a managed service (Supabase leading) rather than running a server; confirmed at the M3.3 spike. An account and project are yours to create.
