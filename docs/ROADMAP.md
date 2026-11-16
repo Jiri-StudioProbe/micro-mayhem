@@ -6,11 +6,11 @@ Read this before starting character creation, car selection, saved scores, aura/
 
 **In scope**
 - Share the game with other people; everyone plays in a browser, on desktop or phone.
-- A profile that can be logged into from any device. Everything is saved to it: settings, character, cars, aura, and **every race**.
+- A **household** (the account) that can be signed in to from any device, holding several **characters** (family members), Switch-style. Everything a character does is saved to it: character, cars, aura, and **every race**. The characters of one household see a **family leaderboard**; other households see nothing of it (section 5b).
 - Character creation (name, simple design), car selection (three to start), best scores, collectable **aura** to spend on car parts, weapons, ammo, healing packs and eventually better cars, and more tracks.
 
 **Explicitly out of scope for now** (revisit only on purpose; see section 6)
-- Public data of any kind: no shared leaderboards, no profiles visible to other players.
+- Anything visible **across households**: no global or public leaderboards, no profiles visible to people outside your household. (A leaderboard *inside* a household is in scope.)
 - Multiplayer, real-time or asynchronous.
 - Real-money purchases.
 
@@ -67,7 +67,7 @@ Trade-off to accept: with ES modules, double-clicking `index.html` from disk sto
 
 ## 5. Online profiles: decisions made
 
-Context: profiles are private, there are no shared leaderboards, no multiplayer and no payments. That changes what must be protected.
+Context: data is private to a household, there are no cross-household leaderboards, no multiplayer and no payments. That changes what must be protected. (The household model is section 5b; privacy and GDPR are section 5c; where they differ from this section, 5b and 5c win.)
 
 **Authorization is the must-have; anti-cheat is not.** There are two separate questions:
 - *Who may touch this profile?* Login, plus a server rule that a user can read and write only their own rows. Required from day one.
@@ -79,7 +79,7 @@ Cheap habits that stay (they protect against our own bugs as much as against che
 - **The server owns aura and purchases.** Balance is the sum of an append-only **ledger**; purchases are server-side and check the balance. The client never writes a balance.
 - **Client-generated race ids** make uploads idempotent: a retried or double-sent race credits once.
 
-**Accounts.** Guest-first: play immediately on an anonymous profile, and optionally sign in to keep it across devices (email magic link, optionally Google/Apple; no passwords). A guest profile can be claimed by signing in, so nothing is lost.
+**Accounts.** Guest-first: play immediately on a local household, and optionally sign in to keep it across devices (an emailed 6-digit code; no passwords, no Google or Apple). A guest household can be claimed by signing in, so nothing is lost.
 
 **What lives where.**
 - *Profile document* (settings, driver, selected car, level tweaks): one versioned JSON blob. The client migrates it, so the server schema does not change when the profile grows. Merge rule: last write wins, by `updatedAt`.
@@ -112,9 +112,70 @@ Cheap habits that stay (they protect against our own bugs as much as against che
 
 **When these decisions must be revisited.** A shared leaderboard, shared or challenge races, trading between players or real-money purchases make the reported data matter to other people. Then move up to **server-side verification**: the client sends config, seed and inputs, and the server re-runs the sim (the same code, which is why it must stay pure and deterministic) and computes the result itself. Caveat: browsers may compute `sin`/`cos` with tiny differences, so verification should check plausibility within a tolerance rather than expect a bit-exact match.
 
+## 5b. Households and characters: decisions made
+
+```
+Household (the account: one email login)
+ ├─ Character "Jiri"   → races, bests, (later) aura, cars, upgrades
+ ├─ Character "Anna"   → …
+ └─ Character "Tom"    → …
+Family leaderboard = the characters of one household, ranked on their races
+```
+
+- **The household is the account.** Only an adult holds an email. A character has no login, only a nickname, so nothing personal is collected from children.
+- **A character owns the progress** (races, bests, aura, cars, upgrades), so M6 and M7 stay per-character with no redesign.
+- **Characters are chosen on a "Who's playing?" screen** on any device signed in to the household; the last one used on a device is remembered.
+- **Anyone signed in to the household may play and edit any character.** No PIN between family members for now (an optional per-character PIN can come later).
+- **The family leaderboard is derived, not stored**: each character's best per board (track, level, assist) computed from the household's races. Boards stay separate by level and assist, as personal bests are today.
+- **Sign-in: an emailed 6-digit code**, typed into the page (email links often open in a different browser from the game on phones). No passwords. Google and Apple sign-in are not planned. Later option: a pairing code from a signed-in device, so a child's tablet needs no email. The schema supports both.
+- **Several adults per household** (a partner, a grandparent): the schema holds a list of members from day one; the invite screen is not part of M3.
+- **Settings split.** *Per device*: mute, steering tuning and the lab presets (a phone and a desktop feel different). *Per character*: name, difficulty level (so a child can stay on Rookie), races and bests.
+- **Today's local profile becomes the first character** on first run (you name it), so no race is lost.
+- **Server rule:** a user may read and write a row only if they belong to its household. Another household's rows are invisible. A cross-household feature would be a new, explicit sharing rule, not a change to this one.
+- **Merge rules:** the household and character documents are last-write-wins by `updatedAt`; races are a union by id; deleting a character or household syncs as a deletion (a tombstone), so other devices purge their copies.
+- **Guest-first stays.** A household that exists only on one device, with no account, works fully offline (the family leaderboard included). Signing in later *claims* it into an account.
+
+Sketch of the model (the server shape; the local cache mirrors it):
+
+```jsonc
+household:  { "id", "createdAt", "updatedAt", "deletedAt?" }
+member:     { "householdId", "userId", "role": "owner" | "adult" }       // userId = the auth account
+character:  { "id", "householdId", "name", "updatedAt", "deletedAt?", "settings": { "level" } }   // livery etc. later
+race:       { "id", "characterId", "householdId", …existing record… }  // householdId copied in, so the access rule is one check
+```
+
+## 5c. Privacy and GDPR
+
+**Honest framing.** GDPR applies to anyone who offers a service to people in the EU, wherever the owner lives, so we treat it as applying. "100% compliant" is not something code can certify: it is a mix of **technical design** (which we build and test) and **organisational duties** (which the owner holds). Before anyone outside the family is invited, **a lawyer or data-protection adviser reviews the result**; this section is the engineering checklist for that review, not legal advice.
+
+**Roles.** The owner is the *controller*. The backend provider (and the email-sending service) are *processors*: a signed data-processing agreement with each, a list of them in the privacy notice, and the backend project created in an **EU region**. Static hosting (GitHub Pages) sees visitors' IP addresses; the notice says so.
+
+**Data we hold, and why.** Adult's email (to sign in); character nicknames and settings; race records (times, level, assist, seed). *Legal basis:* performing the service the adult asked for (Art. 6(1)(b)); a minimal security and error log under legitimate interest. No consent is needed for what we collect, provided we stay inside this list. Anything new (analytics, advertising, extra profile fields) needs a decision first.
+
+**Designed in (testable).**
+- **Minimisation.** No child email, age, birthday, photo or free text beyond a nickname. The sign-in screen and character screen tell users to use a nickname, not a real name.
+- **No third parties in the page.** Fonts are self-hosted, tests already block every non-local request, and there is no analytics, so no cookie banner is needed: browser storage holds only what the game needs to work and keep you signed in.
+- **Remote error reports carry no personal data**: message, stack, app and sim version only. Never names, emails or race data; a test checks the scrubbing.
+- **Access control by row** (section 5b), tested: a user in household B cannot read household A. No secret key ever enters the repository.
+- **Transparency.** A plain-language privacy notice and a short child-friendly version, linked from the sign-in screen and the start screen; terms stating that the account holder is an adult who manages the players.
+- **Children.** The adult creates and controls every character; a character holds only a nickname. Whether the adult's agreement alone covers children's data under each country's rules (the age of digital consent is 13 to 16 depending on the member state) is a **question for the adviser**, not something we assume.
+- **Records.** A short record of processing and a breach procedure in `docs/`, kept up to date.
+
+**Rights, as features (M3.5).**
+- *Access and portability:* export the whole household as machine-readable JSON (the backup code already does this for one device).
+- *Rectification:* rename a character; change the email.
+- *Erasure:* delete a character (its races go with it) and delete the household (every row, the sign-in account, and local copies on the device; other devices purge at their next sync). The notice states how long provider backups keep deleted data.
+- *Restriction and objection, questions, complaints:* a privacy contact address in the notice; requests answered within one month.
+
+**Storage limitation.** Race history is kept while the household exists. A household inactive for **24 months** gets an email warning and is then deleted (to confirm with the adviser).
+
+**Security.** TLS everywhere; rate limits on sign-in codes; least-privilege keys (the public client key ships in the page, any service key stays on the provider); dependency updates; the **72-hour breach notice** duty written into the breach procedure.
+
+**Open items for the owner and the adviser.** Whether a representative in the EU is required for a non-EU controller (there are exemptions for occasional, low-risk processing; children's data may weigh against them); whether a data-protection impact assessment is needed (children, new service); the retention period; the consent route for children in each country you share in.
+
 ## 6. Feature notes and open questions
 
-- **Character.** Name (length-limited, shown with `textContent` only, never `innerHTML`) and a livery: body colour, accent, stripe, number. `drawCar` takes a livery. Question: one driver per account, or several?
+- **Character.** Name (length-limited, shown with `textContent` only, never `innerHTML`) and a livery: body colour, accent, stripe, number. `drawCar` takes a livery. **Decided: several characters per household** (section 5b); the name part arrives in M3.1, the livery stays in M4.
 - **Cars (three).** Define the stat axes first (suggested: top speed, acceleration, handling, hull). Each car needs a distinct silhouette, so car geometry becomes parametric. Question: all three free at the start, or one free and two earned?
 - **Best scores.** Best race time and best lap per track and level (and car, if cars differ a lot), tagged with level and assist. Derived from the saved races, so nothing separate to keep in sync.
 - **Aura.** Sources: pickups on the track (a new entity list and an `aura` event) plus race rewards (finish, placement, kills, clean laps). Sinks: parts, weapons, ammo, healing packs, cars. Open questions: is aura credited per pickup or at race end, and is any lost when you are wrecked? Healing: a consumable you load out, or regeneration in the race?
@@ -129,7 +190,7 @@ Each milestone ends in a deployable build, green tests and a short "play it" che
 | M0 | Solid base | M | Nothing new; the game is the same, but changes are safer |
 | M1 | Deterministic races | M | Nothing new; races are repeatable |
 | M2 | Every race saved (local) | M | See your race history and personal bests; back up your profile |
-| M3 | Accounts and cloud profile | L | **Log in from any device; invite testers** |
+| M3 | Households, characters and cloud sync | L | **Family members share an account, each with a character and a family leaderboard; log in from any device; invite testers** |
 | M4 | Character | S | Pick a name and a car design |
 | M5 | Cars | M-L | Choose from three cars |
 | M6 | Aura | M | Collect aura and see it grow |
@@ -146,7 +207,15 @@ Each milestone ends in a deployable build, green tests and a short "play it" che
 
 **M2. Every race saved, locally.** Define the race record; Profile v2 with a migration; save each race to a local history; best time and best lap per track and level on the results screen; a history screen; export/import of the profile as a code string. This is the first real screen, so build the **router** here. *How:* record from the existing `S.result` plus the lab's lap timer; migration tests with old profile shapes. *Done when:* every finished or wrecked race appears in history, records are tagged by level and assist, and an exported profile imports cleanly on another browser.
 
-**M3. Accounts and cloud profile.** Spike and choose the backend; guest-first sign-in; sync of the profile document and race records (offline-first queue); row-level security; delete and export of account data; privacy policy and terms; staging deployment; remote error reporting. *How:* write `src/net/` against a small interface so the provider can change; test with two browser contexts logged into one account, an offline-then-online upload, and a test that user B cannot read user A. *Needs from you:* a backend project (an account you own), a decision on the audience (children or not), and an OK to let the sandbox reach the backend for testing. *Done when:* a profile started on a phone is complete on a laptop, nothing is lost offline, and you have shared it with a few testers. **This is the first milestone worth sharing widely**, and testers' feedback on handling and menus will shape the rest.
+**M3. Households, characters and cloud sync.** Built in five steps, each ending in a deployable build. The household and character model (sections 5b and 5c) is built and tested locally **before** any backend exists.
+
+- **M3.1 Households and characters, local only.** Profile v3 with a migration (the existing profile becomes the first character; settings split into per-device and per-character); a "Who's playing?" screen (create, rename, delete a character, nickname guidance); races carry `characterId`; the **family leaderboard** screen built from the saved races. *Done when:* two characters on one browser have separate histories and bests and appear on a family leaderboard, and an old profile migrates without losing a race. No server, no network.
+- **M3.2 Sync layer against a fake backend.** `src/net/` behind a small interface (provider-neutral); the offline queue, the merge rules of section 5b and tombstones; a "not yet saved" state in the UI. *Done when:* tests with two simulated devices converge after offline edits, retries credit nothing twice, and a deletion purges the other device.
+- **M3.3 Backend spike, schema and access rules.** Confirm the provider (Supabase is the leading candidate; Firebase the alternative) with a short spike; create the project in an **EU region**; tables for households, members, characters and races; row-level rules; a test that user B cannot read or write household A. *Needs from you:* an account and project you own, the sandbox allowed to reach it, and the signed data-processing agreement. Secrets never enter the repository.
+- **M3.4 Sign-in and sync.** Emailed 6-digit code sign-in; "claim this device's household" into an account; a real provider adapter behind the M3.2 interface; sign out clears local data on request. *Done when:* a household started on a phone is complete on a laptop (a two-browser-context test), and nothing is lost offline.
+- **M3.5 Privacy, rights and operations.** Privacy notice (plain and child-friendly) and terms; export the household as JSON; delete a character and delete the household (every row, the sign-in account, local copies); the inactivity rule; remote error reporting with scrubbing; a staging deployment; records of processing and the breach procedure in `docs/`. **Gate: nobody outside your family is invited until the adviser has reviewed this.** *Done when:* your family plays on several devices and the privacy checklist in section 5c is green.
+
+*How:* write the sync code against the interface so the provider can change; test with fakes first, then two real browser contexts. **This is the first milestone worth sharing, and testers' feedback on handling and menus will shape the rest.**
 
 **M4. Character.** Name and livery in the profile; `drawCar` takes a livery; the name appears in the HUD and results. *Done when:* the livery shows on the car, the minimap and the results, and syncs across devices.
 
@@ -162,9 +231,14 @@ Throughout: run the playtest loop after M3 (share, collect feedback, fix handlin
 
 ## 8. Open questions for the owner
 
-1. **Audience:** friends and family only, or anyone with the link? Could children play? (Affects consent, the sign-in options and how much data we collect.)
-2. **Backend:** happy with a managed service (Supabase leading) rather than running a server? An account and project are yours to create.
-3. **Sign-in:** email link only, or also Google/Apple?
-4. **Cars:** all three free at the start, or one free and two earned?
-5. **Aura:** credited per pickup or at race end; lost when wrecked or kept?
-6. **Order:** is M8 (tracks) wanted before the economy (M6, M7)?
+**Decided**
+1. **Audience:** family first, then friends, some of them in the EU, so GDPR applies (section 5c). Children may play, through an adult's household.
+2. **Sign-in:** emailed 6-digit code only. No Google or Apple.
+3. **Household model:** section 5b (several characters; free switching; one email login to start; level and presets as described there).
+
+**Still open**
+4. **Backend:** a managed service (Supabase leading) rather than running a server; confirmed at the M3.3 spike. An account and project are yours to create.
+5. **Privacy adviser:** who reviews M3.5 before outside invitations, plus the open items listed at the end of section 5c.
+6. **Cars:** all three free at the start, or one free and two earned?
+7. **Aura:** credited per pickup or at race end; lost when wrecked or kept?
+8. **Order:** is M8 (tracks) wanted before the economy (M6, M7)?
