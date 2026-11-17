@@ -26,7 +26,7 @@ export function createHistoryUi({ doc, router, Profile, fmtDate = defaultFmtDate
 
   // Fills the screen from the profile as it is now (a race may have been added since it was last opened).
   function render() {
-    const who = Profile.current(); races = who.races.slice().reverse();   // newest first, the playing character's
+    const who = Profile.current(); $('histKick').textContent = who.name + '\u2019s races'; races = who.races.slice().reverse();   // newest first, the playing character's
     shown = 0; openedRow = null; listEl.textContent = '';
     const boards = describeBoards(who.bests), rows = $('histBoardRows');
     rows.textContent = '';

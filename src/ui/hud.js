@@ -5,7 +5,8 @@ import { ord, fmtTime } from './format.js';
 import { describeBests, describeResult } from './results.js';
 import { clamp } from '../util.js';
 
-export function createHud({ S, doc, router, N, LAPS, WEAP, ranking, stickRelease }) {
+// `who()` is the name of the character who is playing (shown on the results).
+export function createHud({ S, doc, router, N, LAPS, WEAP, ranking, stickRelease, who = () => '' }) {
   const $ = id => doc.getElementById(id);
   const hud = $('hud'), toasts = $('toasts'), cdEl = $('cd');
   const posEl = $('pos'), lapEl = $('lap'), hpEl = $('hp'), hpn = $('hpn'), wname = $('wname'), wammo = $('wammo'), wpn = $('wpn');
@@ -25,7 +26,7 @@ export function createHud({ S, doc, router, N, LAPS, WEAP, ranking, stickRelease
   function showEnd(info) {
     const r = S.result; if (!r) return;
     const d = describeResult(r);
-    $('endKick').textContent = d.kick; $('endHead').textContent = d.head;
+    $('endKick').textContent = d.kick + (who() ? ' \u00b7 ' + who().toUpperCase() : ''); $('endHead').textContent = d.head;
     $('stPlace').textContent = d.place;
     $('stKills').textContent = r.kills; $('stTime').textContent = fmtTime(r.time);
     $('stTimeLab').textContent = d.timeLabel;

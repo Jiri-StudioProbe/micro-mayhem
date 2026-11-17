@@ -7,7 +7,11 @@ let srv, browser;
 before(async () => { srv = await serve(); browser = await launch(); });
 after(async () => { await browser.close(); await srv.close(); });
 
-const open = async (opts = DESKTOP, query = '?debug') => { const t = await newPage(browser, opts); await t.page.goto(srv.url + '/index.html' + query); await t.page.waitForSelector('#start', { state: 'visible' }); return t; };
+// `name` seeds a profile whose one character has that name (the results show it beside the headline).
+const open = async (opts = DESKTOP, query = '?debug', name = null) => {
+  const t = await newPage(browser, opts);
+  if (name) await t.page.addInitScript(n => { const T = '2026-11-12T18:02:00.000Z'; if (!localStorage.getItem('mm:profile')) localStorage.setItem('mm:profile', JSON.stringify({ version: 3, household: { id: 'h', createdAt: T }, settings: { presets: {} }, characters: [{ id: 'a', name: n, level: 'veteran', createdAt: T, updatedAt: T, races: [], bests: {} }] })); }, name);
+  await t.page.goto(srv.url + '/index.html' + query); await t.page.waitForSelector('#start', { state: 'visible' }); return t; };
 const begin = async page => { await page.click('#start'); await waitRace(page); };
 const again = async page => { await page.click('#again'); await waitRace(page); };
 const shown = page => page.waitForSelector('#end', { state: 'visible', timeout: 10000 });
@@ -97,7 +101,7 @@ test('if the race could not be recorded the records block is not shown, and the 
 for (const [name, w, h] of [['iPhone SE sideways', 667, 375], ['small Android sideways', 740, 360], ['standard phone sideways', 844, 390], ['large phone sideways', 932, 430], ['short window', 1000, 480],
   ['laptop', 1366, 600], ['desktop', 1000, 700], ['tablet', 1180, 820], ['phone upright', 390, 844], ['narrow phone upright', 320, 568]]) {
   test(`the results screen fits without scrolling: ${name} (${w}x${h})`, async () => {
-    const { page, close } = await open({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: true, isMobile: w < 900 });
+    const { page, close } = await open({ viewport: { width: w, height: h }, deviceScaleFactor: 1, hasTouch: true, isMobile: w < 900 }, '?debug', 'WWWWWWWWWWWWWWWW');   // the widest name there can be
     await begin(page); await finish(page, 80.5, [27.3, 27.1, 26.2]); await shown(page); await page.waitForTimeout(100);
     const m = await page.evaluate(() => {
       const e = document.getElementById('end'), box = id => document.getElementById(id).getBoundingClientRect(), bests = box('bests');

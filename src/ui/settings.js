@@ -33,8 +33,10 @@ export function createSettingsUi({ S, doc, audio, settings, Profile }) {
     S.assist = levelAssist(); showAssist(); showLevel();
     if (hooks.levelLoaded) hooks.levelLoaded();
   }
+  // Another character is playing (or the playing one was deleted): take up their level, and show it.
+  function reload() { settings.reload(); S.assist = levelAssist(); showAssist(); showLevel(); if (hooks.levelLoaded) hooks.levelLoaded(); }
   assistBtns.forEach(b => b.addEventListener('click', () => setAssist(!S.assist)));
   levelBtns.forEach(b => b.addEventListener('click', () => setLevel(b.dataset.level)));
   S.assist = levelAssist(); showAssist(); showLevel();
-  return { toggleMute, showAssist, setLevel, hooks };
+  return { toggleMute, showAssist, setLevel, reload, hooks };
 }
