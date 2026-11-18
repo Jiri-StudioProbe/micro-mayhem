@@ -6,7 +6,7 @@ import { goodRecord } from '../helpers/records.js';
 import { ctx, T0 } from '../helpers/household.js';
 
 // What a brand-new profile holds (ids and dates come from the test's own source, so they can be compared).
-const FRESH = { version: 3, settings: { presets: {}, character: 'gen-2' }, household: { id: 'gen-1', createdAt: T0 },
+const FRESH = { version: 3, settings: { presets: {}, character: 'gen-2' }, household: { id: 'gen-1', createdAt: T0, deleted: {} },
   characters: [{ id: 'gen-2', name: 'Player', level: 'veteran', createdAt: T0, updatedAt: T0, races: [], bests: {} }] };
 
 test('a fresh profile is a household with one character, Player, on Veteran; it writes nothing until saved', () => {

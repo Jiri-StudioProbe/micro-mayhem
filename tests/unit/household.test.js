@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanName, uniqueName, cleanCharacters, cleanHousehold, addCharacter, renameCharacter, removeCharacter, setCurrent, currentCharacter,
+import { cleanName, uniqueName, cleanCharacters, cleanHousehold, cleanDeleted, MAX_TOMBSTONES, addCharacter, renameCharacter, removeCharacter, setCurrent, currentCharacter,
   mergeCharacter, newCharacter, MAX_CHARACTERS, NAME_MAX, DEFAULT_NAME } from '../../src/household.js';
 import { cleanProfileDoc } from '../../src/profile.js';
 import { MAX_RACES } from '../../src/records.js';
@@ -70,8 +70,8 @@ test('a race belongs to one character: a race id found in two is kept in the fir
 });
 
 test('the household has an id and a date: kept if they are good, made if not', () => {
-  assert.deepEqual(cleanHousehold({ id: 'h', createdAt: T0, plan: 'x' }, ctx()), { id: 'h', createdAt: T0, plan: 'x' });
-  for (const bad of [undefined, null, 5, 'x', [], {}, { id: 7, createdAt: 'no' }, { id: '' }]) assert.deepEqual(cleanHousehold(bad, ctx()), { id: 'gen-1', createdAt: T0 }, JSON.stringify(bad));
+  assert.deepEqual(cleanHousehold({ id: 'h', createdAt: T0, plan: 'x' }, ctx()), { id: 'h', createdAt: T0, plan: 'x', deleted: {} });
+  for (const bad of [undefined, null, 5, 'x', [], {}, { id: 7, createdAt: 'no' }, { id: '' }]) assert.deepEqual(cleanHousehold(bad, ctx()), { id: 'gen-1', createdAt: T0, deleted: {} }, JSON.stringify(bad));
   assert.equal(Object.getPrototypeOf(cleanHousehold(JSON.parse('{"__proto__":{"evil":1},"id":"h"}'), ctx())), Object.prototype);
 });
 
@@ -103,6 +103,22 @@ test('removing: the last character stays; the races go with the character; if it
   assert.deepEqual(removeCharacter(d, 'zz'), { ok: false, error: 'unknown' });
   assert.deepEqual(removeCharacter(d, 'b'), { ok: true }); assert.deepEqual(d.characters.map(c => c.id), ['a']); assert.equal(currentCharacter(d).id, 'a'); assert.equal(d.settings.character, 'a');
   assert.deepEqual(removeCharacter(d, 'a'), { ok: false, error: 'last' }); assert.equal(d.characters.length, 1);
+});
+
+test('deleting a player leaves a tombstone with the time, so that other devices can be told; adding or renaming leaves none', () => {
+  const d = house(); removeCharacter(d, 'b', { now: () => '2026-11-15T10:00:00.000Z' });
+  assert.deepEqual(d.household.deleted, { b: '2026-11-15T10:00:00.000Z' });
+  addCharacter(d, 'Dee'); renameCharacter(d, 'a', 'Ada2'); assert.deepEqual(Object.keys(d.household.deleted), ['b']);
+  assert.deepEqual(removeCharacter(d, 'zz'), { ok: false, error: 'unknown' }); assert.deepEqual(Object.keys(d.household.deleted), ['b'], 'a refused delete leaves nothing');
+  const one = profileDoc([character('a', 'Ada')]); removeCharacter(one, 'a'); assert.deepEqual(one.household.deleted, {}, 'the last player is not deleted, so no tombstone');
+});
+
+test('stored tombstones are cleaned: ids and times must be good, a __proto__ key is nothing, and only the newest 200 are kept', () => {
+  assert.deepEqual(cleanDeleted({ a: T0, b: 'not a date', c: 5, '': T0, ['x'.repeat(65)]: T0, d: null }), { a: T0 });
+  for (const bad of [undefined, null, 5, 'x', [], [T0]]) assert.deepEqual(cleanDeleted(bad), {}, JSON.stringify(bad));
+  const evil = cleanDeleted(JSON.parse('{"__proto__":"2026-11-14T10:00:00.000Z","a":"2026-11-14T10:00:00.000Z"}')); assert.deepEqual(Object.keys(evil), ['a']); assert.equal(Object.getPrototypeOf(evil), Object.prototype);
+  const many = Object.fromEntries(Array.from({ length: MAX_TOMBSTONES + 30 }, (_, i) => ['id' + i, new Date(Date.UTC(2026, 0, 1) + i * 1000).toISOString()]));
+  const kept = cleanDeleted(many); assert.equal(Object.keys(kept).length, MAX_TOMBSTONES); assert.ok('id' + (MAX_TOMBSTONES + 29) in kept); assert.ok(!('id0' in kept), 'the oldest are forgotten first');
 });
 
 test('who is playing: switching works for a character that exists only', () => {

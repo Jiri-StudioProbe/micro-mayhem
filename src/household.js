@@ -14,6 +14,7 @@ import { newId, ownCopy } from './util.js';
 export const MAX_CHARACTERS = 8;    // a household holds this many (8 full histories are about 1.4 MB of the 5 MB localStorage allows)
 export const NAME_MAX = 16;         // characters (code points) in a name
 export const DEFAULT_NAME = 'Player';
+export const MAX_TOMBSTONES = 200;   // how many deleted players the household remembers (to tell other devices); the oldest are forgotten first
 const isObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
 const isStr = (v, max) => typeof v === 'string' && v.length >= 1 && v.length <= max;
 const isoOk = v => typeof v === 'string' && v.length <= 40 && Number.isFinite(Date.parse(v));
@@ -47,7 +48,7 @@ export function newCharacter({ name = DEFAULT_NAME, level = 'veteran' } = {}, ct
 }
 
 // A canonical copy of a stored character, or null. Fields this version does not know are kept (a newer version may have written them).
-function cleanCharacter(raw, ctx) {
+export function cleanCharacter(raw, ctx) {
   if (!isObject(raw) || !isStr(raw.id, 64)) return null;
   const c = ownCopy(raw);
   c.id = raw.id; c.name = cleanName(raw.name) || DEFAULT_NAME;
@@ -74,10 +75,20 @@ export function cleanCharacters(raw, ctx) {
   }
   return out;
 }
+// The players that were deleted: { id: when }, so that a device that has not heard of it yet can be told (the sync, M3.2). **A deleted id is gone for
+// good** (see src/net/merge.js: deleting always wins); the time is only so that the oldest can be forgotten. At most MAX_TOMBSTONES, newest kept.
+export function cleanDeleted(raw) {
+  const out = {};
+  if (!isObject(raw)) return out;
+  const entries = Object.keys(raw).filter(k => k !== '__proto__' && isStr(k, 64) && isoOk(raw[k])).sort((a, b) => Date.parse(raw[b]) - Date.parse(raw[a]) || (a < b ? -1 : 1));
+  for (const k of entries.slice(0, MAX_TOMBSTONES)) out[k] = raw[k];
+  return out;
+}
 export function cleanHousehold(raw, ctx) {
   const c = ctxOf(ctx), h = isObject(raw) ? ownCopy(raw) : {};
   h.id = isObject(raw) && isStr(raw.id, 64) ? raw.id : c.newId();
   h.createdAt = isObject(raw) && isoOk(raw.createdAt) ? raw.createdAt : c.now();
+  h.deleted = cleanDeleted(isObject(raw) ? raw.deleted : null);
   return h;
 }
 
@@ -113,12 +124,14 @@ export function renameCharacter(data, id, name, ctx) {
 // code's characters in its place, instead of leaving you playing an empty Player beside your real ones.
 export const isPristine = c => c.name === DEFAULT_NAME && c.races.length === 0 && Object.keys(c.bests).length === 0 && c.createdAt === c.updatedAt;
 
-// The last character cannot be removed: a household always has someone to play as. Its races go with it.
-export function removeCharacter(data, id) {
+// The last character cannot be removed: a household always has someone to play as. Its races go with it, and a tombstone is left so that the
+// other devices of the household can be told.
+export function removeCharacter(data, id, ctx) {
   const i = data.characters.findIndex(c => c.id === id);
   if (i < 0) return { ok: false, error: 'unknown' };
   if (data.characters.length === 1) return { ok: false, error: 'last' };
   data.characters.splice(i, 1);
+  data.household.deleted = cleanDeleted({ ...data.household.deleted, [id]: ctxOf(ctx).now() });
   if (data.settings.character === id) data.settings.character = data.characters[0].id;
   return { ok: true };
 }

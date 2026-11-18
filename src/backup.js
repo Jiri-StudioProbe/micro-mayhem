@@ -7,6 +7,7 @@
 // ignored. Decoding never trusts the code: the size is limited before and after decompressing (a tiny code can unpack into gigabytes), and what comes
 // out is cleaned like a stored profile by cleanProfileDoc, which the caller does. Pure apart from the browser's (and Node's) stream classes.
 import { MAX_CHARACTERS, uniqueName, mergeCharacter, isPristine } from './household.js';
+import { newId } from './util.js';
 
 export const CODE_MAX = 3000000;      // characters of a code we accept
 export const JSON_MAX = 6000000;      // bytes of profile we accept after decompressing
@@ -95,15 +96,17 @@ const replacesPristine = (local, imported, legacyTo) => !legacyTo && local.chara
 // Adds what an imported profile has to this device's. Characters are matched by id: a character that is here gets the races it lacks (by id; this
 // device's copy wins), in date order, the latest 500, and the better of each best; a character this device does not have is added, with a name
 // that differs from the others', while there is room (a household holds MAX_CHARACTERS). Settings, names, levels and anything else only this game
-// version knows stay as they are here; on a new device (only an unused Player) the code's characters replace that one, and the first of them plays.
+// version knows stay as they are here; a character this household once deleted comes back with a new id; on a new device (only an unused Player) the code's characters replace that one, and the first of them plays.
 // Both arguments are cleaned documents (cleanProfileDoc); neither is changed.
-export function mergeProfiles(local, imported, { legacyTo = null } = {}) {
+export function mergeProfiles(local, imported, { legacyTo = null, makeId = newId } = {}) {
   const fresh = replacesPristine(local, imported, legacyTo), L = fresh ? { ...local, characters: [] } : local;
   const have = raceIds(L), out = L.characters.slice();
   for (const { imp, loc } of pair(L, imported, legacyTo)) {
     if (loc) { out[out.indexOf(loc)] = mergeCharacter(loc, imp, have); continue; }
     if (out.length >= MAX_CHARACTERS) continue;
-    out.push({ ...imp, name: uniqueName(imp.name, out.map(c => c.name)), races: imp.races.filter(r => !have.has(r.id)) });
+    // (a character this household deleted keeps its tombstone for good, so a restored one is a new character, with a new id)
+    const id = Object.prototype.hasOwnProperty.call(local.household.deleted, imp.id) ? makeId() : imp.id;
+    out.push({ ...imp, id, name: uniqueName(imp.name, out.map(c => c.name)), races: imp.races.filter(r => !have.has(r.id)) });
   }
   return { ...local, characters: out, settings: fresh ? { ...local.settings, character: out[0].id } : local.settings, version: Math.max(local.version, imported.version) };
 }

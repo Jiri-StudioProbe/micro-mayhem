@@ -167,6 +167,16 @@ test('the recorder saves a finished race with its header, level, version and tim
   assert.notEqual(cleanRecord(saved), null);
 });
 
+test('the recorder tells the sync about a race it saved, once; whatever the sync does, the race is saved', () => {
+  const { S } = realRace('finish'), P = fakeProfile(), told = []; P.character.id = 'char-1';
+  const rec = createRecorder({ Profile: P, appVersion: '1.4.0', getLevel: () => 'veteran', now: fixedNow, newId: () => 'id-1', onRecord: (r, cid) => told.push([r.id, cid]) });
+  rec.recordRace(S); assert.deepEqual(told, [['id-1', 'char-1']]);
+  rec.recordRace(S); assert.equal(told.length, 1, 'the same id again is a duplicate: nothing new to send');
+  const P2 = fakeProfile(); P2.character.id = 'c';
+  const bad = createRecorder({ Profile: P2, appVersion: '1.4.0', getLevel: () => 'veteran', now: fixedNow, onRecord: () => { throw new Error('the sync is broken'); } });
+  assert.doesNotThrow(() => bad.recordRace(S)); assert.equal(P2.character.races.length, 1); assert.equal(P2.saves, 1);
+});
+
 test('the recorder saves wrecked and last-car races too, and ignores the lab, the demo, and a race with no result', () => {
   const P = fakeProfile(), rec = createRecorder({ Profile: P, appVersion: '1.4.0', getLevel: () => 'veteran', now: fixedNow });
   for (const kind of ['wrecked', 'last']) assert.ok(rec.recordRace(realRace(kind).S), kind);

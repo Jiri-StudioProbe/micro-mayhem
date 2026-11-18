@@ -57,6 +57,15 @@ test('merging is safe to repeat and to do in either direction, with several char
   assert.deepEqual(mergeProfiles(ab, b).characters, ab.characters, 'importing the same thing twice changes nothing');
 });
 
+test('a player this household deleted comes back from a backup as a NEW player: a deleted id is gone for good, or the sync would delete them again', () => {
+  const local = profileDoc([character('a', 'Ada'), character('b', 'Bo')]); local.household.deleted = { c: '2026-11-15T10:00:00.000Z' };
+  const other = profileDoc([character('a', 'Ada'), character('c', 'Cy', [race('c1', 4, 70)])]);
+  const m = mergeProfiles(local, other, { makeId: () => 'fresh-id' });
+  assert.deepEqual(m.characters.map(c => [c.id, c.name]), [['a', 'Ada'], ['b', 'Bo'], ['fresh-id', 'Cy']]); assert.deepEqual(ids(byId(m, 'fresh-id')), ['c1'], 'with their races');
+  assert.deepEqual(m.household.deleted, local.household.deleted, 'the tombstone stays');
+  const same = mergeProfiles(profileDoc([character('a', 'Ada')]), other); assert.ok(same.characters.some(c => c.id === 'c'), 'with no tombstone the id is kept');
+});
+
 test('the boards of a character this device lacks are new, even when another character here has the same board', () => {
   const local = profileDoc([character('a', 'Ada', [race('a1', 1, 80)])]);
   const other = profileDoc([character('c', 'Cy', [race('c1', 2, 60)])]);   // the same board (veteran, no assist), a better time, but not Ada

@@ -19,7 +19,7 @@ test('a version 1 profile becomes version 3: its tuning stays on the device, its
   assert.deepEqual(p.data.driver, { name: 'Ada' });
   assert.equal(p.data.characters.length, 1);
   assert.deepEqual(p.current(), { id: 'gen-2', name: 'Player', level: 'rookie', createdAt: T0, updatedAt: T0, races: [], bests: {} });
-  assert.deepEqual(p.data.household, { id: 'gen-1', createdAt: T0 });
+  assert.deepEqual(p.data.household, { id: 'gen-1', createdAt: T0, deleted: {} });
   assert.equal(p.data.races, undefined); assert.equal(p.data.bests, undefined, 'nothing is left at the top');
 });
 

@@ -129,7 +129,7 @@ export function addRace(data, rec) {
 }
 
 // Saves each race that ends, into the history of the character who is playing (Profile.current()). `Profile` is src/profile.js's; `getLevel()` the current difficulty level; `appVersion` the game's version.
-export function createRecorder({ Profile, appVersion, getLevel, now = () => new Date(), newId = newRaceId }) {
+export function createRecorder({ Profile, appVersion, getLevel, now = () => new Date(), newId = newRaceId, onRecord = null }) {
   return {
     // Records the race that has just ended in S (S.result is set). Only real races count: the lab and the demo behind the menu are not saved.
     // Returns { record, ...info about new bests } or null.
@@ -138,6 +138,8 @@ export function createRecorder({ Profile, appVersion, getLevel, now = () => new 
       const made = cleanRecord(makeRecord({ id: newId(), ts: now().toISOString(), appVersion, header: Sim.raceHeader(S), level: getLevel(), result: S.result }));
       if (!made) throw new Error('the record of a finished race was not valid');   // a bug, not a player's doing: the caller logs it; the history is untouched
       const info = addRace(Profile.current(), made);
+      // (the sync is told, so that the race is sent; whatever it does, the race is already in the history and is saved)
+      if (onRecord && !info.duplicate) { try { onRecord(made, Profile.current().id); } catch (_) { /* the sync's problem, never the race's */ } }
       Profile.save();
       return { record: made, ...info };
     }

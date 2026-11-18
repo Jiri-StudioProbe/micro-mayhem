@@ -61,6 +61,7 @@ export function createProfile(storage, ctx) {
     const doc = cleanProfileDoc(next, ctx);
     if (!doc) return false;
     doc.updatedAt = new Date().toISOString();
+    delete doc.settings.sync;   // a restore brings races (and a household) the server may not have: the next sync starts from scratch, and finds out
     try { storage.setItem(PROFILE_KEY, JSON.stringify(doc)); } catch (_) { return false; }
     for (const k of Object.keys(data)) delete data[k];
     Object.assign(data, doc);
