@@ -25,6 +25,7 @@ import { createRouter } from './ui/router.js';
 import { createHistoryUi } from './ui/historyui.js';
 import { createBackupUi } from './ui/backupui.js';
 import { createPlayersUi } from './ui/playersui.js';
+import { createFamilyUi } from './ui/familyui.js';
 import { createSettingsUi } from './ui/settings.js';
 import { createLab } from './ui/lab.js';
 import { createDebugOverlay } from './ui/debug.js';
@@ -54,17 +55,19 @@ const settings = createSettings(Profile);
 const fx = { hurtFlash: 0 };   // screen effects the shell controls; the renderer reads them
 
 const input = createInput({ S, tune: settings.tune, initAudio: audio.init });
-let historyUi, playersUi;   // (made below, once the profile exists; the router only asks them for a focus target when a screen is shown)
+let historyUi, playersUi, familyUi;   // (made below, once the profile exists; the router only asks them for a focus target when a screen is shown)
 const router = createRouter({ win: window, screens: {
   menu: { el: $('menu') }, end: { el: $('end'), focus: () => $('again') },
   history: { el: $('history'), focus: fresh => historyUi.focusFor('history', fresh) }, backup: { el: $('backup'), focus: () => $('bkBack') }, detail: { el: $('detail'), focus: fresh => historyUi.focusFor('detail', fresh) },
-  players: { el: $('players'), focus: fresh => playersUi.focusFor('players', fresh) }, player: { el: $('player'), focus: fresh => playersUi.focusFor('player', fresh) } } });
+  players: { el: $('players'), focus: fresh => playersUi.focusFor('players', fresh) }, player: { el: $('player'), focus: fresh => playersUi.focusFor('player', fresh) },
+  family: { el: $('family'), focus: () => familyUi.focusFor() } } });
 router.go('menu');
 const hud = createHud({ S, doc: document, router, N, LAPS, WEAP, ranking, stickRelease: input.stickRelease, who: () => Profile.current().name });
 const settingsUi = createSettingsUi({ S, doc: document, audio, settings, Profile });
 historyUi = createHistoryUi({ doc: document, router, Profile });
 createBackupUi({ doc: document, router, Profile });
 playersUi = createPlayersUi({ doc: document, router, Profile, settingsUi });
+familyUi = createFamilyUi({ doc: document, router, Profile, assistOn: settings.levelAssist });
 const lab = createLab({ S, doc: document, N, settings, Profile, settingsUi });
 const rig = createCameraRig({ S, cam, ranking, angDiff });
 const interp = createInterp({ S, angDiff });

@@ -20,11 +20,14 @@ export function defaultFmtDate(ts) {
 const ASSIST_WORDS = { assist: 'ASSIST', manual: 'NO ASSIST', mixed: 'ASSIST SWITCHED' };
 export const boardName = rec => rec.level.toUpperCase() + DOT + ASSIST_WORDS[assistTag(rec)];
 
+// The name of a board from its key (`classic/veteran/manual` -> `VETERAN · NO ASSIST`).
+export function boardLabel(key) {
+  const [, level, kind] = key.split('/');
+  return level.toUpperCase() + DOT + (kind === 'assist' ? 'ASSIST' : 'NO ASSIST');
+}
+
 export function describeBoards(bests) {
-  return Object.keys(bests).sort().map(key => {
-    const [, level, kind] = key.split('/');
-    return { board: level.toUpperCase() + DOT + (kind === 'assist' ? 'ASSIST' : 'NO ASSIST'), time: t2(bests[key].time), lap: t2(bests[key].bestLap) };
-  });
+  return Object.keys(bests).sort().map(key => ({ board: boardLabel(key), time: t2(bests[key].time), lap: t2(bests[key].bestLap) }));
 }
 
 export function describeRace(rec, fmtDate = defaultFmtDate) {
